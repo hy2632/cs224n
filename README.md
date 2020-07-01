@@ -1,4 +1,4 @@
-﻿# cs224n
+﻿# cs224n 20Winter Natural Language Processing with Deep Learning
 ## Intro to Word Vectors
 Word2vec, GloVe， 作业一和Gensim model。
 
