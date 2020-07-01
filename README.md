@@ -16,6 +16,7 @@ Word2vec, GloVe， 作业一和Gensim model。
 3. 开叉的地方backprop梯度叠加
 4. 画个graph会更容易看
 5. numerical gradient check的方法是公式f'(x) ≈ (f(x+h)-f(x-h)) / 2h。 作业题里的检查方法。
+6. Xavier Initialization: Var(Wi) = 2/(n_in + n_out)；Kaiming Init...
 
 
 # 作业部分
