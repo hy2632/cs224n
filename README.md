@@ -20,4 +20,5 @@ Word2vec, GloVe， 作业一和Gensim model。
 
 - gradOutsideVecs一开始直接矩阵乘法再sum行不通，目测是因为negSampleWordIndices有重复值，同一个idx需要加几遍，所以还是用for循环遍历negSampleWordIndices， elementwise地修改。
 
-- 
+### sgd.py
+- 梯度下降，更新一下loss和x。glob和pickle的用法还需要了解一下。
