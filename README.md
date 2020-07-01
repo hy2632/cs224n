@@ -2,10 +2,13 @@
 ## Intro to Word Vectors
 Word2vec, GloVe， 作业一和Gensim model。
 
+
+
+
+# 作业部分
 ## Reference
 1. cs224n 2019 作业笔记 https://looperxx.github.io/CS224n-2019-Assignment/
 2. https://github.com/saunter999/NLP_CS224Stanford_2019/tree/36e3799634e5fbb404772b8f3e28d535d22a29c0
-
 
 ## AS2
 ### word2vec.py （6.30）
