@@ -1,4 +1,5 @@
 ﻿# <font size = 32>**cs224n 20Winter Natural Language Processing with Deep Learning**</font>
+ http://web.stanford.edu/class/cs224n/index.html#schedule
 
 # 课程
 ## 1. Intro to Word Vectors
