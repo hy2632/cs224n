@@ -15,6 +15,7 @@ Word2vec, GloVe， 作业一和Gensim model。
 2. 对每一个地方计算localgradient然后相乘
 3. 开叉的地方backprop梯度叠加
 4. 画个graph会更容易看
+5. numerical gradient check的方法是公式f'(x) ≈ (f(x+h)-f(x-h)) / 2h。 作业题里的检查方法。
 
 
 # 作业部分
