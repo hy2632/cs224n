@@ -45,7 +45,7 @@ Word2vec, GloVe， 作业一和Gensim model。
 ## A3
 ### Pytorch
 - 还是conda env create -f local_env.yaml
-- 装的torch又是“无法定位序数242于动态链接库C:\Anaconda3\envs\a3\lib\site-packages\torch\lib\torch_cpu.dll上”， 爪巴
+- 装的torch又是“无法定位序数242于动态链接库C:\Anaconda3\envs\a3\lib\site-packages\torch\lib\torch_cpu.dll上”， 爪巴(ノ｀Д)ノ
 - pip uninstall torch然后重装
 - torch官网：conda install pytorch torchvision cpuonly -c pytorch
 
