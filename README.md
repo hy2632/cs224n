@@ -1,4 +1,4 @@
-﻿# <fontsize = 28>**cs224n 20Winter Natural Language Processing with Deep Learning**</font>
+﻿# <font size = 28>**cs224n 20Winter Natural Language Processing with Deep Learning**</font>
 ## Intro to Word Vectors
 Word2vec, GloVe， 作业一和Gensim model。
 
