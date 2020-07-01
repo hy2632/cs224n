@@ -22,3 +22,6 @@ Word2vec, GloVe， 作业一和Gensim model。
 
 ### sgd.py
 - 梯度下降，更新一下loss和x。glob和pickle的用法还需要了解一下。
+
+### run.py
+- Iter 40000次...这种交给colab就好了 🙃
