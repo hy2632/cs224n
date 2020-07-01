@@ -53,5 +53,5 @@ Word2vec, GloVe， 作业一和Gensim model。
 
 ### WSL
 - 转到ubuntu了
-- yapf代码格式化
+- yapf代码格式化， shift+alt+F
 
