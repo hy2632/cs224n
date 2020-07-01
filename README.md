@@ -24,7 +24,7 @@ Word2vec, GloVe， 作业一和Gensim model。
 1. cs224n 2019 作业笔记 https://looperxx.github.io/CS224n-2019-Assignment/
 2. https://github.com/saunter999/NLP_CS224Stanford_2019/tree/36e3799634e5fbb404772b8f3e28d535d22a29c0
 
-## AS2
+## A2
 ### word2vec.py （6.30）
 - 简单说就是把作业前半部分的结果用代码实现，实际操作和公式略有区别，所有的uw/uo向量不转置，目测是因为第一次作业的词向量默认是行向量（上课好像提过）。
 - negSamplingLossAndGradient()函数
@@ -40,3 +40,10 @@ Word2vec, GloVe， 作业一和Gensim model。
 ### run.py
 - Iter 40000次...这种交给colab就好了 🙃
 - 最终用时12000+s.. 还是趁早torch8
+
+
+## A3
+### Pytorch
+- 还是conda env create -f env.yaml
+- 装的torch又是“无法定位序数242于动态链接库C:\Anaconda3\envs\a3\lib\site-packages\torch\lib\torch_cpu.dll上”， 爪巴
+- 查了一下要复制dll文件(https://blog.csdn.net/qq_28632639/article/details/83048523)
