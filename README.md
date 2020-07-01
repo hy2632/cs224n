@@ -11,3 +11,5 @@ Word2vec, GloVe， 作业一和Gensim model。
  好像第二部分的表达式和推导结果不一样，之后再检查一下
 
 - gradOutsideVecs一开始直接矩阵乘法再sum行不通，目测是因为negSampleWordIndices有重复值，同一个idx需要加几遍，所以还是用for循环遍历negSampleWordIndices， elementwise地修改。
+
+- 
