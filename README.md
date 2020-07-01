@@ -11,7 +11,7 @@ Word2vec, GloVe， 作业一和Gensim model。
 
 ## 4. NN (backprop)
 复习了一遍cs231n的内容，
-1. Loss函数 partial of L/L 是一，所以backprop用链式法则相乘回去
+1. Loss函数 partial of L/L 是1，在这基础上backprop用链式法则乘回去。最终相当于Loss变化单位1，初始变量需要变动多少。
 2. 对每一个地方计算localgradient然后相乘
 3. 开叉的地方backprop梯度叠加
 4. 画个graph会更容易看
