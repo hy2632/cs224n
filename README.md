@@ -9,6 +9,12 @@ Word2vec, GloVe， 作业一和Gensim model。
 2. (3,4,5,6) , (4,6,7) -> (3,4,5,7)
 3. pdb， 创建breakpoint调试
 
+## 4. NN (backprop)
+复习了一遍cs231n的内容，
+1. Loss函数 partial of L/L 是一，所以backprop用链式法则相乘回去
+2. 对每一个地方计算localgradient然后相乘
+3. 开叉的地方backprop梯度叠加
+4. 画个graph会更容易看
 
 
 # 作业部分
