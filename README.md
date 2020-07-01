@@ -2,6 +2,11 @@
 ## Intro to Word Vectors
 Word2vec, GloVe， 作业一和Gensim model。
 
+## Reference
+1. cs224n 2019 作业笔记 https://looperxx.github.io/CS224n-2019-Assignment/
+2. https://github.com/saunter999/NLP_CS224Stanford_2019/tree/36e3799634e5fbb404772b8f3e28d535d22a29c0
+
+
 ## AS2
 ### word2vec.py （6.30）
 - 简单说就是把作业前半部分的结果用代码实现，实际操作和公式略有区别，所有的uw/uo向量不转置，目测是因为第一次作业的词向量默认是行向量（上课好像提过）。
