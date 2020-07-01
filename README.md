@@ -48,5 +48,6 @@ Word2vec, GloVe， 作业一和Gensim model。
 - 装的torch又是“无法定位序数242于动态链接库C:\Anaconda3\envs\a3\lib\site-packages\torch\lib\torch_cpu.dll上”， 爪巴(ノ｀Д)ノ
 - pip uninstall torch然后重装
 - torch官网：conda install pytorch torchvision cpuonly -c pytorch
+- conda删除环境 conda env remove -n ENV_NAME
 - 放弃了，还是用pip配环境8， anaconda爪巴
 
