@@ -51,3 +51,7 @@ Word2vec, GloVe， 作业一和Gensim model。
 - conda删除环境 conda env remove -n ENV_NAME
 - 放弃了，还是用pip配环境8， anaconda爪巴
 
+### WSL
+- 转到ubuntu了
+- yapf代码格式化
+
