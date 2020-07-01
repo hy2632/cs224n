@@ -4,7 +4,10 @@
 # 课程
 ## 1. Intro to Word Vectors
 Word2vec, GloVe， 作业一和Gensim model。
-
+## 3. Python教程
+1. broadcast: dimension has compatible values if either: samevalue / one is 1
+2. (3,4,5,6) , (4,6,7) -> (3,4,5,7)
+3. pdb， 创建breakpoint调试
 
 
 
