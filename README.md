@@ -1,6 +1,8 @@
 ﻿# <font size = 32>**cs224n 20Winter Natural Language Processing with Deep Learning**</font>
  http://web.stanford.edu/class/cs224n/index.html#schedule
 
+Markdown教程： https://guides.github.com/features/mastering-markdown/
+
 # Lecture部分
 ## 1. Intro to Word Vectors
 Word2vec, GloVe， 作业一和Gensim model。
@@ -17,6 +19,14 @@ Word2vec, GloVe， 作业一和Gensim model。
 4. 画个graph会更容易看
 5. numerical gradient check的方法是公式f'(x) ≈ (f(x+h)-f(x-h)) / 2h。 作业题里的检查方法。
 6. Xavier Initialization: Var(Wi) = 2/(n_in + n_out)；Kaiming Init... 避免symmetry影响learning/specialization.
+
+## 5. Dependence Parsing 依存解析
+1. 两种思路，Constituency Parsing(phrase structure grammar/context-free grammars)无上下文语法 和 DP。前一种语法分析，看词性等等，后一种直接看单词之间自身（而非词性）的依赖关系。
+2. 复杂句子结构的可能结构Catalan numbers：
+
+  ![公式](https://wikimedia.org/api/rest_v1/media/math/render/svg/57de4926a69e67cdcdf999030c5ec3c25d97b0c9)
+  ![公式](https://wikimedia.org/api/rest_v1/media/math/render/svg/a9434815d6487cd3786fd39f533175c6ad99c7c6)
+
 
 
 # 作业部分
