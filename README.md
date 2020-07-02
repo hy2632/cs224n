@@ -23,9 +23,8 @@ Word2vec, GloVe， 作业一和Gensim model。
 ## 5. Dependence Parsing 依存解析
 1. 两种思路，Constituency Parsing(phrase structure grammar/context-free grammars)无上下文语法 和 DP。前一种语法分析，看词性等等，后一种直接看单词之间自身（而非词性）的依赖关系。
 2. 复杂句子结构的可能结构Catalan numbers：
-
-  ![公式](https://wikimedia.org/api/rest_v1/media/math/render/svg/57de4926a69e67cdcdf999030c5ec3c25d97b0c9)
-  ![公式](https://wikimedia.org/api/rest_v1/media/math/render/svg/a9434815d6487cd3786fd39f533175c6ad99c7c6)
+ ![公式](https://wikimedia.org/api/rest_v1/media/math/render/svg/57de4926a69e67cdcdf999030c5ec3c25d97b0c9)
+ ![公式](https://wikimedia.org/api/rest_v1/media/math/render/svg/a9434815d6487cd3786fd39f533175c6ad99c7c6)
 
 
 
