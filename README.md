@@ -91,3 +91,29 @@ ii.  Dropout
 ### 2.(b)
 2n次，每个单词shift和dependency
 
+### result
+
+Epoch 10 out of 10
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1848/1848 [01:55<00:00, 15.94it/s]
+Average Train Loss: 0.028997931656633297
+Evaluating on dev set
+1445850it [00:00, 25829749.59it/s]                                                                                                                                                                                    
+- dev UAS: 87.93
+
+================================================================================
+TESTING
+================================================================================
+Restoring the best model weights found on the dev set
+Final evaluation on test set
+2919736it [00:00, 50080604.85it/s]                                                                                                                                                                                    
+- test UAS: 88.69
+Done!
+
+### (f)
+4种 parsing error: 
+- PP attachment error
+- VP attachment error
+- Modifier attachment error
+- Coordination attachment error
+
+
