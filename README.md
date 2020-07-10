@@ -65,20 +65,29 @@ Word2vec, GloVe， 作业一和Gensim model。
 - 转到ubuntu，然后conda - env - 配好torch
 - yapf代码格式化， shift+alt+F
 
-###
-## 1. (a) Adam
+### 1. (a) Adam
 
 i.	Adam和SGD的区别问题。m指momentum，用动量而非梯度更新，使梯度变化更圆滑，防止梯度爆炸和梯度消失，更新稳定。
 
 ii.	v:梯度平方的移动平均值。先前梯度较小的参数更新将会放大，梯度较大的参数更新将会缩小。 帮助走出局部最优（鞍点）和使更新稳定
 
-## (b) Dropout
+### 1. (b) Dropout
 
 i.  
 > $ E(h_drop_i) = E(\gamma d \dot h_i) = h_i $
+
 > $ E(\gamma d) = 1 $
+
 > $ \gamma * (1-P_drop) *1 + \gamma * P_drop * 0 = 1 $
+
 > $ \gamma = 1/(1-P_drop) $
 
 ii.  Dropout
+
+防止过拟合（feature之间的相关性）
+
+训练时增加随机性；评估时不希望有随机性
+
+### 2.(b)
+2n次，每个单词shift和dependency
 
