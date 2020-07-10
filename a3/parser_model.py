@@ -116,9 +116,13 @@ class ParserModel(nn.Module):
         
         # embeddings (num_words, embedding_size)
         # w (batch_size, n_features)
-        x = torch.stack(
-            [torch.index_select(self.embeddings, 0, w[i]).view(-1) for i in range (w.shape[0])], 
-            dim=0)
+        
+        # x = torch.stack(
+        #     [torch.index_select(self.embeddings, 0, w[i]).view(-1) for i in range (w.shape[0])], 
+        #     dim=0)
+        # The method above is too slow!
+        x = torch.index_select(self.embeddings, 0, w.view(-1)).view((w.shape[0],-1))
+
         ### END YOUR CODE
         return x
 
