@@ -109,7 +109,28 @@ Final evaluation on test set
 - Modifier attachment error 修饰语连接错误（副词形容词之类）
 - Coordination attachment error （协调连接错误）
 
-i. 
-![Image of i](https://looperxx.github.io/imgs/1560951554929.png)
+1. 
+- Error type: VP attachment error
+- Incorrect dependency: wedding → fearing
+- Correct dependency: heading → fearing
+
+2. 
+- Error type: Coordination Attachment Error
+- Incorrect dependency: makes → rescue
+- Correct dependency: rush → rescue
+
+3. 
+- Error type:  PP attachment Error
+- Incorrect dependency:  named → midland 
+- Correct dependency: guy → midland 
+
+4. 
+- Error type: Modifier Attachment Error
+- Incorrect dependency: elements → most 
+- Correct dependency: crucial → most 
+
+
+
+
 
 
