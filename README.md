@@ -91,3 +91,46 @@ ii.  Dropout
 ### 2.(b)
 2n次，每个单词shift和dependency
 
+### result
+
+Epoch 10 out of 10
+Average Train Loss: 0.028997931656633297
+- dev UAS: 87.93
+
+TESTING
+Restoring the best model weights found on the dev set
+Final evaluation on test set
+- test UAS: 88.69
+
+### (f)
+4种 parsing error: 
+- PP attachment error 介词短语连接错误
+- VP attachment error 动词短语连接错误
+- Modifier attachment error 修饰语连接错误（副词形容词之类）
+- Coordination attachment error （协调连接错误）
+
+1. 
+- Error type: VP attachment error
+- Incorrect dependency: wedding → fearing
+- Correct dependency: heading → fearing
+
+2. 
+- Error type: Coordination Attachment Error
+- Incorrect dependency: makes → rescue
+- Correct dependency: rush → rescue
+
+3. 
+- Error type:  PP attachment Error
+- Incorrect dependency:  named → midland 
+- Correct dependency: guy → midland 
+
+4. 
+- Error type: Modifier Attachment Error
+- Incorrect dependency: elements → most 
+- Correct dependency: crucial → most 
+
+
+
+
+
+
