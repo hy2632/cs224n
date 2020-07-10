@@ -8,6 +8,9 @@ Haoshen Hong <haoshen@stanford.edu>
 """
 
 import sys
+# python解释器相关的变量和方法
+# sys.argv: 获取程序外部向程序传递的参数 sys.argv[0]
+# sys.path: 目录列表
 
 class PartialParse(object):
     def __init__(self, sentence):
@@ -31,8 +34,10 @@ class PartialParse(object):
         ###
         ### Note: The root token should be represented with the string "ROOT"
         ###
-
-
+        self.stack = ["ROOT"]
+        # 不要直接修改sentence
+        self.buffer = sentence.copy()
+        self.dependencies = []
         ### END YOUR CODE
 
 
@@ -50,8 +55,20 @@ class PartialParse(object):
         ###         1. Shift
         ###         2. Left Arc
         ###         3. Right Arc
-
-
+        if transition == "S":
+            self.stack += [self.buffer[0]]
+            self.buffer.remove(self.buffer[0])
+            # print(self.stack, self.buffer)
+        elif transition == "LA":
+            self.dependencies += [(self.stack[-1], self.stack[-2])]
+            self.stack.remove(self.stack[-2])
+            # print(self.stack, self.buffer)
+        elif transition =="RA":
+            self.dependencies += [(self.stack[-2], self.stack[-1])]
+            self.stack.remove(self.stack[-1])
+            # print(self.stack, self.buffer)
+        else:
+            raise Exception(ValueError, "transition should be S, LA or RA")
         ### END YOUR CODE
 
     def parse(self, transitions):
@@ -101,8 +118,17 @@ def minibatch_parse(sentences, model, batch_size):
     ###             contains references to the same objects. Thus, you should NOT use the `del` operator
     ###             to remove objects from the `unfinished_parses` list. This will free the underlying memory that
     ###             is being accessed by `partial_parses` and may cause your code to crash.
-
-
+    
+    partial_parses = [PartialParse(sentence) for sentence in sentences]
+    unfinished_parses = partial_parses[:]
+    while(unfinished_parses):
+        transitions = model.predict(unfinished_parses[:batch_size])
+        for transition, parse in zip(transitions, unfinished_parses[:batch_size]):
+            parse.parse_step(transition)
+            if (len(parse.stack)==1)&(parse.buffer==[]):
+                unfinished_parses.remove(parse)
+        dependencies = [partial_parse.dependencies for partial_parse in partial_parses]
+    
     ### END YOUR CODE
 
     return dependencies
