@@ -74,10 +74,10 @@ ii.	v:梯度平方的移动平均值。先前梯度较小的参数更新将会�
 
 ## (b) Dropout
 
-i.  E(h_drop_i) = E(gamma d dot h_i) = h_i
-	E(gamma d) = 1
-	gamma * (1-Pdrop) *1 + gamma * drop * 0 =1
-	gamma = 1/(1-Pdrop)
+i.  $ E(h_drop_i) = E(\gamma d \dot h_i) = h_i $
+	$ E(\gamma d) = 1 $
+	$ \gamma * (1-P_drop) *1 + \gamma * P_drop * 0 = 1 $
+	$ \gamma = 1/(1-P_drop) $
 
 ii.  Dropout
 
