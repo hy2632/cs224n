@@ -110,7 +110,6 @@ Final evaluation on test set
 - Coordination attachment error （协调连接错误）
 
 i. 
-![Image of i]
-(https://looperxx.github.io/imgs/1560951554929.png)
+![Image of i](https://looperxx.github.io/imgs/1560951554929.png)
 
 
