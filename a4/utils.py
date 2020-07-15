@@ -33,11 +33,12 @@ def pad_sents(sents, pad_token):
     sents_padded = []
 
     ### YOUR CODE HERE (~6 Lines)
-
-
-
+    sents_padded = sents.copy()
+    max_len = np.array([len(sent) for sent in sents]).max()
+    for sent in sents:
+        if len(sent) < max_len:
+            sent += [pad_token] * (max_len - len(sent))
     ### END YOUR CODE
-
     return sents_padded
 
 
@@ -79,4 +80,3 @@ def batch_iter(data, batch_size, shuffle=False):
         tgt_sents = [e[1] for e in examples]
 
         yield src_sents, tgt_sents
-
