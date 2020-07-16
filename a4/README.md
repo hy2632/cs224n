@@ -47,4 +47,7 @@ Note: Heavily inspired by the https://github.com/pcyin/pytorch_nmt repository
 
 * (g) 文字题：`generate_sent_masks()` 生成 `enc_masks(b, src_len)`标识batch中每个sentence每个词是否是pad，这样做对attention计算的影响以及其必要性。
   - `step`中，(8)式α_t进行了softmax，后续a_t计算为确保attention不受padding影响要求padding处α_t=0，即e_t设置为-∞。
-  - 
+
+
+git配置：git remote add origin https://github.com/hy2632/cs224n.git
+git push origin  master
