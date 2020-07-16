@@ -28,11 +28,23 @@ Note: Heavily inspired by the https://github.com/pcyin/pytorch_nmt repository
 
 
 * (d) nmt_model.py 中 encode 方法实现
-  - self.encoder 是一个双向 lstm
-  - encode 方法传入两个参数：source_padded和source_lengths。前者是已经pad后(src_len, b)的tensor，每一列是一个句子。后者是一个整数列表，表示每个句子实际多少词。
+  - `self.encoder` 是一个双向 lstm
+  - `encode` 方法传入两个参数：`source_padded, source_lengths`。前者是已经pad后(src_len, b)的tensor，每一列是一个句子。后者是一个整数列表，表示每个句子实际多少词。
   - 需要返回两个值：enc_hiddens = hencs(所有1<=i<=m(句长),每一句中所有词，同时对于整个batch所有句子), dec_init_state = (hdec0, cdec0)
-  - lstm要求输入满足规范形状，所以需要pad_packed_sequence 和packed_pad_sequence进行变形
-  - 第一步用self.model_embeddings把source_padded转换为词嵌入
+  - lstm要求输入满足规范形状，所以需要`pad_packed_sequence` 和`packed_pad_sequence`进行变形
+  - 第一步用`self.model_embeddings`把source_padded转换为词嵌入
 
-* (e) decode方法
-  - self.
+* (e) `decode`方法
+  - `self.decode`r是`nn.LSTMCell`，返回值h、c，但这部分包装在step里面，本decode方法里从`self.step`取得返回值`dec_state, combined_output, e_t`
+  - 还是先用`model_embeddings`将target_padded转换为Y，一个目标词嵌入，(tgt_len, b, e)
+  - 用`torch.split`方法， 将Y按第0维分成步长为1的步数，相当于逐词(t)操作。
+  - (5)式表明了一个迭代过程，最后关心的`combined_outputs`是o_t集合
+
+* (f) `step`方法
+  - step方法具体处理(5)到(12)式。
+  - 第一部分，(5)-(7)，运用bmm、(un)squeeze。bmm需要注意第0维度是留给batch_size的，两个三维tensor的第一二维相乘，满足维度要求。常见的是在dim=1/2做unsqueeze，乘完再squeeze
+  - 注意到调换乘法次序+不同的变换维度方式会造成最终结果的精度损失。
+
+* (g) 文字题：`generate_sent_masks()` 生成 `enc_masks(b, src_len)`标识batch中每个sentence每个词是否是pad，这样做对attention计算的影响以及其必要性。
+  - `step`中，(8)式α_t进行了softmax，后续a_t计算为确保attention不受padding影响要求padding处α_t=0，即e_t设置为-∞。
+  - 

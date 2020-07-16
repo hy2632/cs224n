@@ -354,7 +354,6 @@ class NMT(nn.Module):
         dec_state = self.decoder(Ybar_t, dec_state)
         dec_hidden, dec_cell = dec_state
         # dec_hidden: (b,h) corresponds to h^dec_t
-        (b, src_len, h) = enc_hiddens_proj.size()
         # e_t: (b, src_len)
         e_t = torch.bmm(enc_hiddens_proj, torch.unsqueeze(dec_hidden, dim=2)).squeeze(dim=2)
         # 造成精度损失的写法: 
