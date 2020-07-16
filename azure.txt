@@ -1,1 +1,2 @@
 This is for testing git on Azure VM.
+2nd time reinit a VM.
