@@ -4,7 +4,7 @@ Note: Heavily inspired by the https://github.com/pcyin/pytorch_nmt repository
 
 作业分为两部分， 第一部分代码实现 NMT with RNN， 第二部分文字题分析 NMT
 
-## 1. NMM with RNN
+## 1. NMT with RNN
 
 - Bidirectional LSTM Encoder & Unidirectional LSTM Decoder
 - 勘误：
@@ -68,57 +68,95 @@ Note: Heavily inspired by the https://github.com/pcyin/pytorch_nmt repository
   | Additive | tanh 操作 normalize 了数值 | 两个参数矩阵，参数更多，空间复杂度大 |
 
 ## 2. Analyzing NMT Systems (30 points)
-- 参考lec8 slides P50-
+
+- 参考 lec8 slides P50-
 - https://www.skynettoday.com/editorials/state_of_nmt
 - Out-of-vocabulary words, Domain mismatch between src&tgt, maintaining context over longer text, Low-resource language pairs.
-- 
-
 
 * (a)
+
   - i.
-    - 1. error: favorite of my favorites, 
-    - 2. reason: tgt库中缺乏one of my favorites这样的表达, "Low-resource language pairs"
+
+    - 1. error: favorite of my favorites,
+    - 2. reason: tgt 库中缺乏 one of my favorites 这样的表达, "Low-resource language pairs"
     - 3. to fix: 添加训练数据
 
   - ii.
-    - 1. error: most read译为了more reading。
-    - 2. reason: 使用google translator 发现ms ledo 被译为 read more， 而ms ledo en los EEUU 被译为 most read in the US。西班牙语的特点？特定的语言构造。
-    - 3. to fix: 需要让ms ledo 和后面的定语建立更强的联系，从而把握语义理解。增大hidden_size
+
+    - 1. error: most read 译为了 more reading。
+    - 2. reason: 使用 google translator 发现 ms ledo 被译为 read more， 而 ms ledo en los EEUU 被译为 most read in the US。西班牙语的特点？特定的语言构造。
+    - 3. to fix: 需要让 ms ledo 和后面的定语建立更强的联系，从而把握语义理解。增大 hidden_size
 
   - iii.
-    - 1. error:  "<unk>"
+
+    - 1. error: "<unk>"
     - 2. reason: Out-of-vocabulary
     - 3. to fix: 添加到词表
 
   - iv.
+
     - 1. error: block -> apple
     - 2. reason: "manzana" 多义性
-    - 3. to fix: 训练集添加manzana作为block含义的phrase数据，且大于“vuelta a la manzana”因为google translator 仍将该句错译。
-  
+    - 3. to fix: 训练集添加 manzana 作为 block 含义的 phrase 数据，且大于“vuelta a la manzana”因为 google translator 仍将该句错译。
+
   - v.
-    - 1. error: "la sala de profesores": "teacher's lounge" -> "women's room", 
-    - 2. reason: "profesores"应该是复数，不包含性别，该句既错译又包含性别bias。
-    - 3. to fix: 增加“profesores”/profesor/profesora的训练数据，平衡性别bias的同时也要将teacher翻译出来。
+
+    - 1. error: "la sala de profesores": "teacher's lounge" -> "women's room",
+    - 2. reason: "profesores"应该是复数，不包含性别，该句既错译又包含性别 bias。
+    - 3. to fix: 增加“profesores”/profesor/profesora 的训练数据，平衡性别 bias 的同时也要将 teacher 翻译出来。
 
   - vi.
-    - 1. error: hectare -> acre 常识错误
-    - 2. reason: 
+    - 1. error: hectare -> acre
+    - 2. reason: 常识错误，涉及到单位转换
     - 3. to fix: 没想到好的方法。文章中写：General knowledge about the world is necessary for NMT systems to translate effectively. **However, this knowledge is difficult to encode in its entirety and is not easily extractable from volumes of data. We need mechanisms to incorporate common sense and world knowledge into our neural networks.**
 
 * (b)
-  - 88: 
+
+  - 88:
+
     - When he 's born , the baby looks a little bit .
     - When the child is born, she looks like a girl.
     - Cuando nace, el beb tiene aspecto de nia.(Cuando nace, el bebé tiene aspecto de niña.)
-    - 错误：语意，原因：src本身存在错误无法显示符号，解决方案：编码格式改一哈
+    - 错误：语意，原因：src 本身存在错误无法显示符号，解决方案：样本数据和测试数据的编码格式改一哈
 
   - 109：
     - So , there are many of a lot of sex .
     - So sex can come in lots of different varieties.
     - Entonces, hay muchas variedades de sexo.
-    - 错误：语法（many a lot of)，variedades 没有翻译出variety的意思。解决方案：增加muchas variedades的数据
-  
+    - 错误：语法（many a lot of)，variedades 没有翻译出 variety 的意思。解决方案：增加 muchas variedades 的数据
 
+* (c)
+  BLEU 的定义见 <BLEU: a Method for Automatic Evaluation of Machine Translation>
+  Candidate c, Reference r, BLEU 包含两部分：reference 中出现 candidate 中 ngram phrase 的概率（注意有个 ceiling）和 candidate 太长导致的 brevity penalty。
 
+- i.
+  - for c1,
+    - p1 = (0 + 1 + 1 + 1 + 0)/5 = 3/5
+    - p2 = (0 + 1 + 1 + 0) /4 = 1/2
+    - len(c) = 5
+    - len(r) = 6
+    - BP = exp(1-6/5) = 0.819
+    - `BLEU = 0.819 * exp(0.5*log(3/5) + 0.5*log(1/2)) = 0.449`
+  - for c2,
+    - p1 = (1 + 1 + 0 + 1 + 1)/5 = 4/5
+    - p2 = (1 + 0 + 0 + 1) /4 = 1/2
+    - len(c) = 5
+    - len(r) = 4
+    - BP = 1
+    - `BLEU = 1 * exp(0.5*log(4/5) + 0.5*log(1/2)) = 0.632`
+  - c2 更好。
 
+- ii.
+  - c1: p1 = 3/5, p2 = 1/2, BLEU 不变 0.449
+  - c2: p1 = 2/5, p2 = 1/4, len(c) = 5, len(r) = 6, `BLEU = 0.819 * exp(0.5*log(2/5) + 0.5*log(1/4)) = 0.259`
+  - 当前 c1 更好。
 
+- iii.
+  - 单一 ref 产生类似 ii 的问题， 比如对于 r2，c2 可以说是非常好的翻译，如果没有 r2 仅用 r1 判断，c2 就比 c1 差很多。
+
+- iv.
+
+| BLEU vs Human | 1                    | 2                        |
+| ------------- | -------------------- | ------------------------ |
+| Pro           | Fast                 | Language independent     |
+| Con           | Lack of Common Sense | Need Multiple References |
