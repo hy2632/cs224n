@@ -1,2 +1,4 @@
 \.vscode
 *.pem
+a4/model.bin
+a4/model.bin.optim
