@@ -106,5 +106,19 @@ Note: Heavily inspired by the https://github.com/pcyin/pytorch_nmt repository
     - 3. to fix: 没想到好的方法。文章中写：General knowledge about the world is necessary for NMT systems to translate effectively. **However, this knowledge is difficult to encode in its entirety and is not easily extractable from volumes of data. We need mechanisms to incorporate common sense and world knowledge into our neural networks.**
 
 * (b)
-  - 
+  - 88: 
+    - When he 's born , the baby looks a little bit .
+    - When the child is born, she looks like a girl.
+    - Cuando nace, el beb tiene aspecto de nia.(Cuando nace, el bebé tiene aspecto de niña.)
+    - 错误：语意，原因：src本身存在错误无法显示符号，解决方案：编码格式改一哈
+
+  - 109：
+    - So , there are many of a lot of sex .
+    - So sex can come in lots of different varieties.
+    - Entonces, hay muchas variedades de sexo.
+    - 错误：语法（many a lot of)，variedades 没有翻译出variety的意思。解决方案：增加muchas variedades的数据
+  
+
+
+
 
