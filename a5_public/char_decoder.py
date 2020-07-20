@@ -20,7 +20,7 @@ class CharDecoder(nn.Module):
         super(CharDecoder, self).__init__()
         self.target_vocab = target_vocab
         self.charDecoder = nn.LSTM(char_embedding_size, hidden_size)
-        self.char_output_projection = nn.Linear(hidden_size, len(self.target_vocab.char2id))
+        self.char_output_projection = nn.Linear(hidden_size, len(self.target_vocab.char2id)) # vocab.py 中 VocabEntry. 字典长度，得出每个字符的得分
         self.decoderCharEmb = nn.Embedding(len(self.target_vocab.char2id), char_embedding_size,
                                            padding_idx=self.target_vocab.char_pad)
 

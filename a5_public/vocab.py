@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 """
 CS224N 2019-20: Homework 5
 vocab.py: Vocabulary Generation
@@ -31,7 +30,6 @@ class VocabEntry(object):
     """ Vocabulary Entry, i.e. structure containing either
     src or tgt language terms.
     """
-
     def __init__(self, word2id=None):
         """ Init VocabEntry Instance.
         @param word2id (dict): dictionary mapping words 2 indices
@@ -49,7 +47,8 @@ class VocabEntry(object):
 
         ## Additions to the A4 code:
         self.char_list = list(
-            """ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,;.!?:'\"/\\|_@#$%^&*~`+-=<>()[]""")
+            """ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,;.!?:'\"/\\|_@#$%^&*~`+-=<>()[]"""
+        )
 
         self.char2id = dict()  # Converts characters to integers
         self.char2id['∏'] = 0  # <pad> token
@@ -57,14 +56,16 @@ class VocabEntry(object):
         self.char2id['}'] = 2  # end of word token
         self.char2id['Û'] = 3  # <unk> token
         for i, c in enumerate(self.char_list):
-            self.char2id[c] = len(self.char2id)
+            self.char2id[c] = len(self.char2id)  #妙 啊
         self.char_pad = self.char2id['∏']
         self.char_unk = self.char2id['Û']
         self.start_of_word = self.char2id["{"]
         self.end_of_word = self.char2id["}"]
         assert self.start_of_word + 1 == self.end_of_word
 
-        self.id2char = {v: k for k, v in self.char2id.items()}  # Converts integers to characters
+        self.id2char = {v: k
+                        for k, v in self.char2id.items()
+                        }  # Converts integers to characters 字典反查的基本操作
         ## End additions to the A4 code
 
     def __getitem__(self, word):
@@ -73,7 +74,9 @@ class VocabEntry(object):
         @param word (str): word to look up.
         @returns index (int): index of word
         """
-        return self.word2id.get(word, self.unk_id)
+        return self.word2id.get(
+            word, self.unk_id
+        )  #dict的get方法，若key存在返回value，否则返回后值。 self[word]可以直接返回word的id
 
     def __contains__(self, word):
         """ Check if word is captured by VocabEntry.
@@ -123,7 +126,8 @@ class VocabEntry(object):
         @param sents (list[list[str]]): sentence(s) in words
         @return word_ids (list[list[list[int]]]): sentence(s) in indices
         """
-        return [[[self.char2id.get(c, self.char_unk) for c in ("{" + w + "}")] for w in s] for s in sents]
+        return [[[self.char2id.get(c, self.char_unk) for c in ("{" + w + "}")]
+                 for w in s] for s in sents]
 
     def words2indices(self, sents):
         """ Convert list of sentences of words into list of list of indices.
@@ -139,7 +143,8 @@ class VocabEntry(object):
         """
         return [self.id2word[w_id] for w_id in word_ids]
 
-    def to_input_tensor_char(self, sents: List[List[str]], device: torch.device) -> torch.Tensor:
+    def to_input_tensor_char(self, sents: List[List[str]],
+                             device: torch.device) -> torch.Tensor:
         """ Convert list of sentences (words) into tensor with necessary padding for
         shorter sentences.
 
@@ -160,10 +165,15 @@ class VocabEntry(object):
         ###     - You may find .contiguous() useful after reshaping. Check the following links for more details:
         ###         https://pytorch.org/docs/stable/tensors.html#torch.Tensor.contiguous
         ###         https://pytorch.org/docs/stable/tensors.html#torch.Tensor.view
-
+        char_ids = self.words2charindices(sents)
+        sents_t = pad_sents_char(char_ids, self['<pad>'])
+        sents_var = torch.tensor(sents_t, dtype=torch.long, device=device)
+        # sents_var = sents_var.view([sents_var.size()[1], sents_var.size()[0], -1]).contiguous()
+        return torch.t(sents_var).contiguous()
         ### END YOUR CODE
 
-    def to_input_tensor(self, sents: List[List[str]], device: torch.device) -> torch.Tensor:
+    def to_input_tensor(self, sents: List[List[str]],
+                        device: torch.device) -> torch.Tensor:
         """ Convert list of sentences (words) into tensor with necessary padding for 
         shorter sentences.
 
@@ -186,11 +196,14 @@ class VocabEntry(object):
         @returns vocab_entry (VocabEntry): VocabEntry instance produced from provided corpus
         """
         vocab_entry = VocabEntry()
-        word_freq = Counter(chain(*corpus))
+        word_freq = Counter(chain(*corpus)) #Counter+Chain的组合用法，类似zip+enumerate
         valid_words = [w for w, v in word_freq.items() if v >= freq_cutoff]
-        print('number of word types: {}, number of word types w/ frequency >= {}: {}'
-              .format(len(word_freq), freq_cutoff, len(valid_words)))
-        top_k_words = sorted(valid_words, key=lambda w: word_freq[w], reverse=True)[:size]
+        print(
+            'number of word types: {}, number of word types w/ frequency >= {}: {}'
+            .format(len(word_freq), freq_cutoff, len(valid_words)))
+        top_k_words = sorted(valid_words,
+                             key=lambda w: word_freq[w],
+                             reverse=True)[:size]
         for word in top_k_words:
             vocab_entry.add(word)
         return vocab_entry
@@ -199,7 +212,6 @@ class VocabEntry(object):
 class Vocab(object):
     """ Vocab encapsulating src and target langauges.
     """
-
     def __init__(self, src_vocab: VocabEntry, tgt_vocab: VocabEntry):
         """ Init Vocab.
         @param src_vocab (VocabEntry): VocabEntry for source language
@@ -230,7 +242,10 @@ class Vocab(object):
         """ Save Vocab to file as JSON dump.
         @param file_path (str): file path to vocab file
         """
-        json.dump(dict(src_word2id=self.src.word2id, tgt_word2id=self.tgt.word2id), open(file_path, 'w'), indent=2)
+        json.dump(dict(src_word2id=self.src.word2id,
+                       tgt_word2id=self.tgt.word2id),
+                  open(file_path, 'w'),
+                  indent=2)
 
     @staticmethod
     def load(file_path):
@@ -248,7 +263,8 @@ class Vocab(object):
         """ Representation of Vocab to be used
         when printing the object.
         """
-        return 'Vocab(source %d words, target %d words)' % (len(self.src), len(self.tgt))
+        return 'Vocab(source %d words, target %d words)' % (len(
+            self.src), len(self.tgt))
 
 
 if __name__ == '__main__':
@@ -260,8 +276,10 @@ if __name__ == '__main__':
     src_sents = read_corpus(args['--train-src'], source='src')
     tgt_sents = read_corpus(args['--train-tgt'], source='tgt')
 
-    vocab = Vocab.build(src_sents, tgt_sents, int(args['--size']), int(args['--freq-cutoff']))
-    print('generated vocabulary, source %d words, target %d words' % (len(vocab.src), len(vocab.tgt)))
+    vocab = Vocab.build(src_sents, tgt_sents, int(args['--size']),
+                        int(args['--freq-cutoff']))
+    print('generated vocabulary, source %d words, target %d words' %
+          (len(vocab.src), len(vocab.tgt)))
 
     vocab.save(args['VOCAB_FILE'])
     print('vocabulary saved to %s' % args['VOCAB_FILE'])
