@@ -230,6 +230,8 @@ class Vocab(object):
         """
         assert len(src_sents) == len(tgt_sents)
 
+        # src和tgt共用相同的vocab_size
+
         print('initialize source vocabulary ..')
         src = VocabEntry.from_corpus(src_sents, vocab_size, freq_cutoff)
 
