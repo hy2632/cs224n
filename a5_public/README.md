@@ -21,7 +21,7 @@
 1. 这种写法很巧妙
 
    <code>for i, c in enumerate(self.char_list):</code><br>
-   <code> self.char2id[c] = len(self.char2id)</code>
+   <code>   self.char2id[c] = len(self.char2id)</code>
 
 2. 组合用法很有意思，类似 zip+enumerate
 
