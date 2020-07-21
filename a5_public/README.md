@@ -20,19 +20,19 @@
 
 1. 这种写法很巧妙
 
-   <code>for i, c in enumerate(self.char_list):</code>
+   <code>for i, c in enumerate(self.char_list):</code><br>
    <code> self.char2id[c] = len(self.char2id)</code>
 
 2. 组合用法很有意思，类似 zip+enumerate
 
-   <code>from collections import Counter</code>
-   <code>from itertools import chain</code>
+   <code>from collections import Counter</code><br>
+   <code>from itertools import chain</code><br>
    <code>word_freq = Counter(chain(\*corpus))</code>
 
 3. 用字典辅助排序
 
-   <code>valid_words = [w for w, v in word_freq.items() if v >= freq_cutoff]</code>
-   <code>top_k_words = sorted(valid_words, key=lambda w: word_freq[w], reverse=True[:size]</code>
+   <code>valid_words = [w for w, v in word_freq.items() if v >= freq_cutoff]</code><br>
+   <code>top_k_words = sorted(valid_words, key=lambda w: word_freq[w], reverse=True[:size]</code><br>
 
 用到了`json.dump`，Vocab 也用此形式存储。
 
