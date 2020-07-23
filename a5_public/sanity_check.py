@@ -6,11 +6,16 @@ CS224N 2019-20: Homework 5
 sanity_check.py: sanity checks for assignment 5
 Usage:
     sanity_check.py 1e
+    sanity_check.py 1f
+    sanity_check.py 1g
     sanity_check.py 1h
     sanity_check.py 2a
     sanity_check.py 2b
     sanity_check.py 2c
 """
+from highway import Highway
+from cnn import CNN
+
 import json
 import math
 import pickle
@@ -41,12 +46,17 @@ EMBED_SIZE = 3
 HIDDEN_SIZE = 4
 DROPOUT_RATE = 0.0
 
+E_CHAR = 50
+M_WORD = 12
+
 class DummyVocab():
     def __init__(self):
         self.char2id = json.load(open('./sanity_check_en_es_data/char_vocab_sanity_check.json', 'r'))
         self.id2char = {id: char for char, id in self.char2id.items()}
-        self.char_pad = self.char2id['∏']
-        self.char_unk = self.char2id['Û']
+        # self.char_pad = self.char2id['∏']
+        # self.char_unk = self.char2id['Û']
+        self.char_pad = self.char2id['<pad>']
+        self.char_unk = self.char2id['<unk>']
         self.start_of_word = self.char2id["{"]
         self.end_of_word = self.char2id["}"]
 
@@ -69,6 +79,48 @@ def question_1e_sanity_check():
 
     print("Sanity Check Passed for Question 1e: To Input Tensor Char!")
     print("-"*80)
+
+# =========================================================================================
+def question_1f_sanity_check(x_conv_out):
+    """ Sanity check for the class `highway`.
+    """
+    print ("-"*80)
+    print("Running Sanity Check for Question 1f: highway")
+    print ("-"*80)
+
+    print("Running test on a batch of x_conv_out")
+    
+    embed_size = x_conv_out.size()[-1]
+    model = Highway(embed_size)
+    x_highway = model.forward(x_conv_out)
+    assert x_highway.size() == x_conv_out.size(), f"Output size should be: {x_conv_out.size()}, but got {x_highway.size()}"
+    print("Sanity Check Passed for Question 1f: highway!")
+    print("-"*80)
+# =========================================================================================
+
+
+
+# =========================================================================================
+def question_1g_sanity_check():
+    """ Sanity check for the class `CNN`.
+    """
+    print ("-"*80)
+    print("Running Sanity Check for Question 1g: CNN")
+    print ("-"*80)
+    SENTENCE_LENGTH = 20
+    BATCH_SIZE = 5
+    E_CHAR = 50
+    M_WORD = 12
+    model = CNN(e_char = E_CHAR, m_word=M_WORD)
+    x_reshaped = torch.randn((SENTENCE_LENGTH, BATCH_SIZE, E_CHAR, M_WORD))
+
+    print("Running test on a batch of x_reshaped")
+    x_conv_out = model.forward(x_reshaped)
+    assert list(x_conv_out.size()) == [SENTENCE_LENGTH, BATCH_SIZE, E_CHAR], f"Output size should be: {(SENTENCE_LENGTH, BATCH_SIZE, E_CHAR)}, but got {x_conv_out.size()}"
+
+    print("Sanity Check Passed for Question 1g: CNN!")
+    print("-"*80)
+# =========================================================================================
 
 def question_1h_sanity_check(model):
     """ Sanity check for model_embeddings.py
@@ -169,8 +221,12 @@ def main():
 
     if args['1e']:
         question_1e_sanity_check()
+    elif args['1f']:
+        question_1f_sanity_check(torch.randn(10,5,20))
+    elif args['1g']:
+        question_1g_sanity_check()
     elif args['1h']:
-        question_1h_sanity_check(model)
+        question_1h_sanity_check(model)  
     elif args['2a']:
         question_2a_sanity_check(decoder, char_vocab)
     elif args['2b']:
