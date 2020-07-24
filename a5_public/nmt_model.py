@@ -253,13 +253,17 @@ class NMT(nn.Module):
         ### COPY OVER YOUR CODE FROM ASSIGNMENT 4
         dec_state = self.decoder(Ybar_t, dec_state)
         dec_hidden, dec_cell = dec_state
-        (b, src_len, h) = enc_hiddens_proj.size()
         e_t = torch.bmm(enc_hiddens_proj, torch.unsqueeze(dec_hidden, dim=2)).squeeze(dim=2)
         ### END YOUR CODE FROM ASSIGNMENT 4
 
         # Set e_t to -inf where enc_masks has 1
         if enc_masks is not None:
-            e_t.data.masked_fill_(enc_masks.bool(), -float('inf'))
+            # e_t.data.masked_fill_(enc_masks.bool(), -float('inf'))
+            e_t.data.masked_fill_(enc_masks==1, -float('inf'))
+        #显示'Tensor' object has no attribute 'bool'
+        # 原因应该是torch版本较低
+
+        
 
         ### COPY OVER YOUR CODE FROM ASSIGNMENT 4
         alpha_t = F.softmax(e_t, dim=1)

@@ -170,10 +170,10 @@ class VocabEntry(object):
         ###         https://pytorch.org/docs/stable/tensors.html#torch.Tensor.contiguous
         ###         https://pytorch.org/docs/stable/tensors.html#torch.Tensor.view
         char_ids = self.words2charindices(sents)
-        sents_t = pad_sents_char(char_ids, self.char2id['<pad>'])
-        sents_var = torch.tensor(sents_t, dtype=torch.long, device=device)
-        sents_var = sents_var.contiguous().view([sents_var.size()[1], sents_var.size()[0], -1]).contiguous()
-        return(sents_var)
+        sents_padded_chars = pad_sents_char(
+            char_ids, char_pad_token=self.char2id['<pad>'])
+        sents_var = torch.tensor(sents_padded_chars, dtype=torch.long, device=device)
+        return torch.transpose(sents_var, 0, 1)
         ### END YOUR CODE
 
     def to_input_tensor(self, sents: List[List[str]],

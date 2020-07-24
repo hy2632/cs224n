@@ -23,44 +23,39 @@ class CNN(nn.Module):
         self,
         f: int,
         e_char: int = 50,
-        m_word: int = 12,
+        m_word: int = 21, # According to sanity_check 1h.
         k: int = 5,
         padding: int = 1,
     ):
+
         super(CNN, self).__init__()
-        self.e_char = e_char
-        self.m_word = m_word
-        self.k = k
-        self.padding = padding
         self.f = f
         self.conv1d = nn.Conv1d(
-            in_channels=self.e_char,
-            out_channels=self.f,
-            kernel_size=self.k,
-            padding=self.padding,
+            in_channels=e_char,
+            out_channels=f,
+            kernel_size=k,
+            padding=padding,
             bias=True,
         )
         # maxpool from e_char*(m_word - k + 1) to e_char
-        self.maxpool = nn.MaxPool1d(kernel_size=self.m_word - self.k + 1 +
-                                    2 * self.padding)
+        self.maxpool = nn.MaxPool1d(kernel_size=m_word - k + 1 +
+                                    2 * padding)
 
     def forward(
         self,
         x_reshaped: torch.Tensor,
     ) -> torch.Tensor:
         """ Map from x_reshaped to x_conv_out\n
-            @param x_reshaped (Tensor): Tensor with shape of (sentence_length, batch_size, m_word, e_char) \n
-            @return x_conv_out (Tensor) : Tensor with shape of (sentence_length, batch_size,  e_char) \n
+            @param x_reshaped (Tensor): Tensor with shape of (sentence_length, batch_size, e_char, m_word) \n
+            @return x_conv_out (Tensor) : Tensor with shape of (sentence_length, batch_size,  e_word=f) \n
         """
-
-        sentence_length = x_reshaped.size()[0]
-        batch_size = x_reshaped.size()[1]
-        x_conv = self.conv1d(x_reshaped.contiguous().view(
-            sentence_length * batch_size, self.e_char, self.m_word))
-
-        x_conv_out = self.maxpool(F.relu(x_conv)).squeeze(-1)
-        x_conv_out = x_conv_out.contiguous().view(sentence_length, batch_size,
-                                                  -1)
+        (sentence_length, batch_size, e_char, m_word) = tuple(x_reshaped.size())
+        x_conv = self.conv1d(x_reshaped.contiguous().view(sentence_length*batch_size, e_char, m_word))
+        # assert tuple(x_conv.size()) == (sentence_length*batch_size, self.f, m_word - 2)
+        x_conv_out = self.maxpool(F.relu(x_conv))
+        # assert (x_conv_out.size()) == (sentence_length*batch_size, self.f, 1)
+        x_conv_out = x_conv_out.squeeze(-1)
+        x_conv_out = x_conv_out.contiguous().view(sentence_length, batch_size, -1)
         return x_conv_out
 
     ### END YOUR CODE

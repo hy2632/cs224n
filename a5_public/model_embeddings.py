@@ -40,11 +40,11 @@ class ModelEmbeddings(nn.Module):
         ### YOUR CODE HERE for part 1h
         self.vocab = vocab
         self.word_embed_size = word_embed_size
+        pad_token_idx = vocab.char2id['<pad>']
         # nn.Embedding : input (*), output(*,H), elementwise and only add one dimension
-        # e_char=50
-        self.char_embedding = nn.Embedding(num_embeddings=len(
-            self.vocab.char2id),
-                                           embedding_dim=50)
+        self.char_embedding = nn.Embedding(num_embeddings=len(self.vocab.char2id), embedding_dim=50, padding_idx=pad_token_idx)
+        self.cnn = CNN(f=self.word_embed_size,e_char=50)
+        self.highway = Highway(self.word_embed_size)
         self.dropout = nn.Dropout(0.3)
         ### END YOUR CODE
 
@@ -63,18 +63,10 @@ class ModelEmbeddings(nn.Module):
         x_emb = self.char_embedding(x_padded)
 
         # CNN:
-        _, _, max_word_length = tuple(x_padded.size())
-        cnn = CNN(f=self.word_embed_size, m_word=max_word_length, e_char=50)
         # reshape x_emb to obtain x_reshaped(,,e_char,m_word)
         x_reshaped = x_emb.permute(0, 1, 3, 2)
-        x_conv_out = cnn(x_reshaped)
-
-        # Highway
-        highway = Highway(self.word_embed_size)
-        x_highway = highway(x_conv_out)
-
-        # Dropout
+        x_conv_out = self.cnn(x_reshaped)
+        x_highway = self.highway(x_conv_out)
         x_word_emb = self.dropout(x_highway)
-
         return x_word_emb
         ### END YOUR CODE

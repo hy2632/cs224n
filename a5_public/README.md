@@ -64,9 +64,28 @@
 ## (f) 要求写一个sanity_check， (f)本身实现的highway很简单，只是一步处理，所以检查一下前后维度就可以。
 
 ## (g) cnn.py, CNN
-  目前的想法是输入(batch_size, sentence_length, m_word, e_char)，前两维不动，对每个词conv完结果应该是e_char， 所以输出是(batch_size, sentence_length, e_char)。接着做，之后看情况修改。
-  torch需要使用.contiguous().view(),因为view只能作用在contiguous的变量上
+  <!-- 目前的想法是输入(batch_size, sentence_length, m_word, e_char)，前两维不动，对每个词conv完结果应该是e_char， 所以输出是(batch_size, sentence_length, e_char)。接着做，之后看情况修改。
+  torch需要使用.contiguous().view(),因为view只能作用在contiguous的变量上 -->
 
 ## (h) Model_Embeddings.
   一个问题是 f=e_word, e_word和e_char的关系到底如何？？
-  题目假设e_char=50, e_word是初始化model_embeddings的参数word_embedding_size。
+  题目假设e_char=50, e_word是初始化model_embeddings的参数word_embedding_size, 默认值21。
+
+## (j) 
+  wdnmd， vocab.py里的sents_var总是空的，查了半天发现utils.pad_sents忘了粘贴。
+  nmt_model.py中step()函数
+  
+  if enc_masks is not None:
+
+            e_t.data.masked_fill_(enc_masks.bool(), -float('inf'))
+
+  显示'Tensor' object has no attribute 'bool'
+  原因应该是torch版本较低
+  事实也确实如此，local_env.yml显示pytorch=1.0.0，a4作业就没有限定版本，估计是助教忘了更新。
+  解决方案：改成e_t.data.masked_fill_(enc_masks==1, -float('inf'))
+
+  epoch 100, iter 500, cum. loss 0.30, cum. ppl 1.01 cum. examples 200
+  validation: iter 500, dev. ppl 1.001988
+  Corpus BLEU: 99.66941696422141
+
+  达到题设要求。

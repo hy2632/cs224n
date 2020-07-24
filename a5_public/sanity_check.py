@@ -93,7 +93,7 @@ def question_1f_sanity_check(x_conv_out):
     embed_size = x_conv_out.size()[-1]
     model = Highway(embed_size)
     x_highway = model.forward(x_conv_out)
-    assert x_highway.size() == x_conv_out.size(), f"Output size should be: {x_conv_out.size()}, but got {x_highway.size()}"
+    assert x_highway.size() == x_conv_out.size(), "Output size should be: {}, but got {}".format(x_conv_out.size(), x_highway.size())
     print("Sanity Check Passed for Question 1f: highway!")
     print("-"*80)
 # =========================================================================================
@@ -110,13 +110,14 @@ def question_1g_sanity_check():
     SENTENCE_LENGTH = 20
     BATCH_SIZE = 5
     E_CHAR = 50
-    M_WORD = 12
-    model = CNN(e_char = E_CHAR, m_word=M_WORD)
+    M_WORD = 21
+    F = 3
+    model = CNN(f=F, e_char = E_CHAR, m_word=M_WORD)
     x_reshaped = torch.randn((SENTENCE_LENGTH, BATCH_SIZE, E_CHAR, M_WORD))
 
     print("Running test on a batch of x_reshaped")
     x_conv_out = model.forward(x_reshaped)
-    assert list(x_conv_out.size()) == [SENTENCE_LENGTH, BATCH_SIZE, E_CHAR], f"Output size should be: {(SENTENCE_LENGTH, BATCH_SIZE, E_CHAR)}, but got {x_conv_out.size()}"
+    assert list(x_conv_out.size()) == [SENTENCE_LENGTH, BATCH_SIZE, F], "Output size should be: {}, but got {}".format((SENTENCE_LENGTH, BATCH_SIZE, F), x_conv_out.size())
 
     print("Sanity Check Passed for Question 1g: CNN!")
     print("-"*80)
