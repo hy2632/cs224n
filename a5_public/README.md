@@ -62,7 +62,8 @@
 
 字母∏ Û python执行有问题，改成<pad>, <unk>。
 
-## (f) 要求写一个 sanity_check， (f)本身实现的 highway 很简单，只是一步处理，所以检查一下前后维度就可以。
+## (f) highway
+要求写一个 sanity_check, (f)本身实现很简单，只是一步处理，所以检查一下前后维度就可以。
 
 ## (g) cnn.py, CNN
 
