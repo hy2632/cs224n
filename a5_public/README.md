@@ -81,7 +81,7 @@ torch 需要使用.contiguous().view(),因为 view 只能作用在 contiguous �
 wdnmd， vocab.py 里的 sents_var 总是空的，查了半天发现 utils.pad_sents 忘了粘贴。
 nmt_model.py 中 step()函数
 
-  <code>if enc*masks is not None:</code>
+  <code>if enc*masks is not None:</code><br>
   <code>    e_t.data.masked_fill*(enc_masks.bool(), -float('inf'))</code>
 
 显示'Tensor' object has no attribute 'bool'
