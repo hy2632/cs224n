@@ -60,14 +60,15 @@
 
 ## (e) Implement `to_input_tensor_char()` in `vocab.py`
 
-    字母∏ Û python执行有问题，改成<pad>, <unk>。
+字母∏ Û python执行有问题，改成<pad>, <unk>。
 
 ## (f) 要求写一个 sanity_check， (f)本身实现的 highway 很简单，只是一步处理，所以检查一下前后维度就可以。
 
 ## (g) cnn.py, CNN
 
-  <!-- 目前的想法是输入(batch_size, sentence_length, m_word, e_char)，前两维不动，对每个词conv完结果应该是e_char， 所以输出是(batch_size, sentence_length, e_char)。接着做，之后看情况修改。
-  torch需要使用.contiguous().view(),因为view只能作用在contiguous的变量上 -->
+输入(sentence_length, batch_size, e_char, m_word)，前两维不动，对每个词 conv 完，后两维应该是 f 和窗口数，再经过 maxpool 所有窗口， 输出是(sentence_length, batch_size, f)
+torch 需要使用.contiguous().view(),因为 view 只能作用在 contiguous 的变量上
+比较关键的一步。
 
 ## (h) Model_Embeddings.
 
@@ -79,9 +80,8 @@
 wdnmd， vocab.py 里的 sents_var 总是空的，查了半天发现 utils.pad_sents 忘了粘贴。
 nmt_model.py 中 step()函数
 
-if enc_masks is not None:
-
-            e_t.data.masked_fill_(enc_masks.bool(), -float('inf'))
+  <code>if enc*masks is not None:</code>
+  <code>    e_t.data.masked_fill*(enc_masks.bool(), -float('inf'))</code>
 
 显示'Tensor' object has no attribute 'bool'
 原因应该是 torch 版本较低
