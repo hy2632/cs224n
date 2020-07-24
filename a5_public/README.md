@@ -87,10 +87,11 @@ nmt_model.py 中 step()函数
 显示'Tensor' object has no attribute 'bool'
 原因应该是 torch 版本较低
 事实也确实如此，local*env.yml 显示 pytorch=1.0.0，a4 作业就没有限定版本，估计是助教忘了更新。
-解决方案：改成 e_t.data.masked_fill*(enc_masks==1, -float('inf'))
+解决方案：改成<br> 
+e_t.data.masked_fill*(enc_masks==1, -float('inf'))
 
-epoch 100, iter 500, cum. loss 0.30, cum. ppl 1.01 cum. examples 200
-validation: iter 500, dev. ppl 1.001988
+epoch 100, iter 500, cum. loss 0.30, cum. ppl 1.01 cum. examples 200<br>
+validation: iter 500, dev. ppl 1.001988<br>
 Corpus BLEU: 99.66941696422141
 
 达到题设要求。
