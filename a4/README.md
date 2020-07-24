@@ -41,6 +41,7 @@ Note: Heavily inspired by the https://github.com/pcyin/pytorch_nmt repository
   - 还是先用`model_embeddings`将 target_padded 转换为 Y，一个目标词嵌入，(tgt_len, b, e)
   - 用`torch.split`方法， 将 Y 按第 0 维分成步长为 1 的步数，相当于逐词(t)操作。
   - (5)式表明了一个迭代过程，最后关心的`combined_outputs`是 o_t 集合
+  - **07/23 勘误** 做a5时发现dedcode忘记更新o_prev
 
 * (f) `step`方法
 
