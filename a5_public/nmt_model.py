@@ -119,10 +119,9 @@ class NMT(nn.Module):
         ###     - Add `source_padded_chars` for character level padded encodings for source
         ###     - Add `target_padded_chars` for character level padded encodings for target
         ###     - Modify calls to encode() and decode() to use the character level encodings
-        
         target_padded = self.vocab.tgt.to_input_tensor(target, device=self.device)
-        source_padded_chars = self.vocab.src.to_input_tensor_char(source, device=self.device)
-        target_padded_chars = self.vocab.tgt.to_input_tensor_char(target, device=self.device)
+        source_padded_chars = self.vocab.src.to_input_tensor_char(source, device=self.device)# Tensor: (src_len, b, m_word_len)
+        target_padded_chars = self.vocab.tgt.to_input_tensor_char(target, device=self.device)# Tensor: (src_len, b, m_word_len)
         
         enc_hiddens, dec_init_state = self.encode(source_padded_chars, source_lengths)
         enc_masks = self.generate_sent_masks(enc_hiddens, source_lengths)
@@ -218,6 +217,7 @@ class NMT(nn.Module):
             Ybar_t = torch.cat([Y_t, o_prev], dim=1)
             dec_state, combined_output, e_t = self.step(Ybar_t, dec_state, enc_hiddens, enc_hiddens_proj, enc_masks)
             combined_outputs.append(combined_output)
+            o_prev = combined_output
         combined_outputs = torch.stack(combined_outputs, dim=0)
         ### END YOUR CODE FROM ASSIGNMENT 4
 
