@@ -38,6 +38,7 @@ import torch
 import torch.nn as nn
 import torch.nn.utils
 
+
 #----------
 # CONSTANTS
 #----------
@@ -180,7 +181,8 @@ def question_2c_sanity_check(decoder):
     print("Running Sanity Check for Question 2c: CharDecoder.decode_greedy()")
     print ("-"*80)
     sequence_length = 4
-    inpt = torch.zeros(1, BATCH_SIZE, HIDDEN_SIZE, dtype=torch.float)
+    # inpt = torch.zeros(1, BATCH_SIZE, HIDDEN_SIZE, dtype=torch.float)
+    inpt = torch.randint(0, 95, (1, BATCH_SIZE, HIDDEN_SIZE,), dtype=torch.float)
     initialStates = (inpt, inpt)
     device = decoder.char_output_projection.weight.device
     decodedWords = decoder.decode_greedy(initialStates, device)

@@ -36,9 +36,9 @@
     更易学习到"long-range dependencies in the network",
     更加interpretable.
 
-## Implementation 代码实现
+# 1. Character-based convolutional encoder for NMT (36 points)
 
-### Vocab.py
+## Vocab.py
 
 1. 这种写法很巧妙·
 
@@ -95,3 +95,18 @@ validation: iter 500, dev. ppl 1.001988<br>
 Corpus BLEU: 99.66941696422141
 
 达到题设要求。
+
+
+# 2. Character-based LSTM decoder for NMT (26 points)
+
+## (b) 
+奇怪的点在于, char_decoder.py中train_forward的loss计算，不softmaxloss才收敛。
+题目要求仔细阅读nn.CrossEntropyLoss，实际上Pytorch中CrossEntropyLoss()函数将softmax-log-NLLLoss合并到一块。
+
+`This criterion combines nn.LogSoftmax() and nn.NLLLoss() in one single class.`
+loss 0.38, Corpus BLEU: 99.66941696422141
+
+## (c)
+这部分思路很清晰，用到了一些技巧，比如(tensor,tensor)的elementwise的提取，char拼接成word等，详见代码
+
+
