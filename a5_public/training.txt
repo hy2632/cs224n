@@ -1,0 +1,29 @@
+epoch 1, iter 370, avg. loss 294.99, avg. ppl 2135452.01 cum. examples 11840, speed 6498.22 words/sec, time elapsed 38.43 sec
+Traceback (most recent call last):
+  File "run.py", line 350, in <module>
+    main()
+  File "run.py", line 342, in main
+    train(args)
+  File "run.py", line 169, in train
+    example_losses = -model(src_sents, tgt_sents) # (batch_size,)
+  File "/anaconda/envs/local_nmt/lib/python3.5/site-packages/torch/nn/modules/module.py", line 489, in __call__
+    result = self.forward(*input, **kwargs)
+  File "/home/hy2632/notebooks/cs224n/a5_public/nmt_model.py", line 126, in forward
+    enc_hiddens, dec_init_state = self.encode(source_padded_chars, source_lengths)
+  File "/home/hy2632/notebooks/cs224n/a5_public/nmt_model.py", line 173, in encode
+    X = self.model_embeddings_source(source_padded)
+  File "/anaconda/envs/local_nmt/lib/python3.5/site-packages/torch/nn/modules/module.py", line 489, in __call__
+    result = self.forward(*input, **kwargs)
+  File "/home/hy2632/notebooks/cs224n/a5_public/model_embeddings.py", line 69, in forward
+    x_highway = self.highway(x_conv_out)
+  File "/anaconda/envs/local_nmt/lib/python3.5/site-packages/torch/nn/modules/module.py", line 489, in __call__
+    result = self.forward(*input, **kwargs)
+  File "/home/hy2632/notebooks/cs224n/a5_public/highway.py", line 42, in forward
+    x_proj = F.relu(self.projection(x_conv_out))
+  File "/anaconda/envs/local_nmt/lib/python3.5/site-packages/torch/nn/modules/module.py", line 489, in __call__
+    result = self.forward(*input, **kwargs)
+  File "/anaconda/envs/local_nmt/lib/python3.5/site-packages/torch/nn/modules/linear.py", line 67, in forward
+    return F.linear(input, self.weight, self.bias)
+  File "/anaconda/envs/local_nmt/lib/python3.5/site-packages/torch/nn/functional.py", line 1354, in linear
+    output = input.matmul(weight.t())
+RuntimeError: size mismatch, m1: [1824 x 512], m2: [256 x 256] at /opt/conda/conda-bld/pytorch_1544173631724/work/aten/src/THC/generic/THCTensorMathBlas.cu:266

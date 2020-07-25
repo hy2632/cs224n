@@ -70,6 +70,9 @@
 输入(sentence_length, batch_size, e_char, m_word)，前两维不动，对每个词 conv 完，后两维应该是 f 和窗口数，再经过 maxpool 所有窗口， 输出是(sentence_length, batch_size, f)
 torch 需要使用.contiguous().view(),因为 view 只能作用在 contiguous 的变量上
 比较关键的一步。
+**07/25更新**：
+    果然后面还是出问题了。m_word是forward函数中参数x_reshaped的维度属性，如果使用max_pool layer，一开始并不知道输入的参数m_word是多少。所以不应该用maxpool层（因为不能对一个多维tensor的某一维更新），
+    而应该在forward函数里直接调用torch.max(dim=2)
 
 ## (h) Model_Embeddings.
 
@@ -105,11 +108,27 @@ Corpus BLEU: 99.66941696422141
 
 `This criterion combines nn.LogSoftmax() and nn.NLLLoss() in one single class.`
 loss 0.38, Corpus BLEU: 99.66941696422141
-
+t
 ## (c)
 这部分思路很清晰，用到了一些技巧，比如(tensor,tensor)的elementwise的提取，char拼接成word等，详见代码
 
 ## (e)
-在VM上训练。继续用tmux
+在VM上训练。
+注意run.sh可以进行修改，使得train_local也可使用cuda，提高效率。
+仍然遇到了环境问题。 “RuntimeError: Given input size: (256x1x12). Calculated output size: (256x1x0). Output size is too small”
+于是只能在VM上配一个和本地相同的（过时的）环境。问题解决。
+**CNN.py中存在问题，很久之前埋下的坑！！！**：初始化时如果建立maxpool就需要提前知道m_word以确定kernel_size。这个问题可以这样解决：避免maxpool层，在forward中使用torch.max函数，对某个维度进行max。
+  对cnn和sanity_check都进行修改。由于默认使用了sanitycheck的值m_word=21,实际上在写其他函数调用CNN类的时候没有定义m_word值，所以正好不需要改。
+  参考：Tessa Scott<https://github.com/tessascott039/a5/blob/master/cnn.py>
 
+  <https://github.com/pytorch/pytorch/issues/4166><https://stackoverflow.com/questions/56137869/is-it-possible-to-make-a-max-pooling-on-dynamic-length-sentences-without-padding>
+  探讨了nn.MaxPool1d能不能有一个动态的kernel_size。
+  
 
+train的结果：
+epoch 29, iter 196300, avg. loss 81.60, avg. ppl 59.75 cum. examples 9600, speed 6086.86 words/sec, time elapsed 20580.30 sec
+epoch 29, iter 196310, avg. loss 81.10, avg. ppl 50.14 cum. examples 9920, speed 6458.96 words/sec, time elapsed 20581.33 sec
+epoch 29, iter 196320, avg. loss 78.58, avg. ppl 48.75 cum. examples 10240, speed 6548.57 words/sec, time elapsed 20582.32 sec
+epoch 29, iter 196330, avg. loss 86.52, avg. ppl 61.24 cum. examples 10537, speed 6019.06 words/sec, time elapsed 20583.36 sec
+
+test的结果：Corpus BLEU: 36.395796664198

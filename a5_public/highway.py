@@ -30,6 +30,7 @@ class Highway(nn.Module):
         self.gate = nn.Linear(in_features=self.embed_size,
                               out_features=self.embed_size,
                               bias=True)
+        
 
     def forward(self, x_conv_out: torch.Tensor) -> torch.Tensor:
         """ Take a mini-batch of sentence of ConvNN

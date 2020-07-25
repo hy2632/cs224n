@@ -113,7 +113,8 @@ def question_1g_sanity_check():
     E_CHAR = 50
     M_WORD = 21
     F = 3
-    model = CNN(f=F, e_char = E_CHAR, m_word=M_WORD)
+    # model = CNN(f=F, e_char = E_CHAR, m_word=M_WORD)
+    model = CNN(f=F, e_char = E_CHAR)
     x_reshaped = torch.randn((SENTENCE_LENGTH, BATCH_SIZE, E_CHAR, M_WORD))
 
     print("Running test on a batch of x_reshaped")
