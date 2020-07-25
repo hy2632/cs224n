@@ -109,4 +109,7 @@ loss 0.38, Corpus BLEU: 99.66941696422141
 ## (c)
 这部分思路很清晰，用到了一些技巧，比如(tensor,tensor)的elementwise的提取，char拼接成word等，详见代码
 
+## (e)
+在VM上训练。继续用tmux
+
 
