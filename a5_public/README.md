@@ -223,4 +223,5 @@ tímpano，témpano 是同义词，但一个翻译为耳膜一个翻译为冰山
 | Ref            | It is the syndrome of insensitivity to androgens. |
 | A4 translation | It's called <unk> <unk>                           |
 | A5 translation | It's the syndrome of insulin insulin.             |
+
 对于连续的<unk>，CharCNN的表现并没有很好改善（重复出现的insulin）。
