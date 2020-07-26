@@ -60,7 +60,7 @@
 
 ## (e) Implement `to_input_tensor_char()` in `vocab.py`
 
-字母 ∏ Û python 执行有问题，改成<pad>, <unk>。
+字母 ∏ Û python 执行有问题，改成`<pad>`, `<unk>`。
 
 ## (f) highway
 
@@ -169,7 +169,7 @@ test：Corpus BLEU: 36.395796664198
 "traducida": 19350,
 
 traduces, traduzcas not in.
-如果是 word-based NMT，将 spanish 翻译为 english， 如果句子中出现 traduces 就会判断为<unk>， 无法翻译；但如果是 character-aware NMT，别的类似 traducir(to translate)的动词可能有类似的性质(加 s，从 I 变成 you)，同时又恰好出现在训练集中，那么模型在遇到 traduces 的 s 时就能翻译出 you translate。
+如果是 word-based NMT，将 spanish 翻译为 english， 如果句子中出现 traduces 就会判断为`<unk>`， 无法翻译；但如果是 character-aware NMT，别的类似 traducir(to translate)的动词可能有类似的性质(加 s，从 I 变成 you)，同时又恰好出现在训练集中，那么模型在遇到 traduces 的 s 时就能翻译出 you translate。
 
 ## (b)
 
@@ -211,7 +211,7 @@ CharCNN: 对某个单词的各个字母进行 charembedding，然后经过 CNN/H
 |----------------|----------------------------------------------------------------------------|
 | ES             | A medida que se derrite un tmpano, estoy respirando su atmsfera ancestral. |
 | Ref            | As an eardrum melts, I am breathing in its ancient atmosphere.             |
-| A4 translation | As a <unk> <unk> I'm breathing its atmosphere <unk>                        |
+| A4 translation | As a `<unk>` `<unk>` I'm breathing its atmosphere `<unk>`                  |
 | A5 translation | As it melts a iceberg, I'm breathing its ancestral atmosphere.             |
 
 tímpano，témpano 是同义词，但一个翻译为耳膜一个翻译为冰山。这里冰山显然更为合适。
@@ -221,7 +221,7 @@ tímpano，témpano 是同义词，但一个翻译为耳膜一个翻译为冰山
 |----------------|---------------------------------------------------|
 | ES             | Es el sndrome de insensibilidad a los andrgenos.  |
 | Ref            | It is the syndrome of insensitivity to androgens. |
-| A4 translation | It's called <unk> <unk>                           |
+| A4 translation | It's called `<unk>` `<unk>`                       |
 | A5 translation | It's the syndrome of insulin insulin.             |
 
-对于连续的<unk>，CharCNN的表现并没有很好改善（重复出现的insulin）。
+对于连续的`<unk>`，CharCNN的表现并没有很好改善（重复出现的insulin）。
