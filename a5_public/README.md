@@ -186,7 +186,7 @@ traduces, traduzcas not in.
 
 2. 也可以上传自己的 character-aware NMT model 的 embeddings 查找 nearest neighbors.
 
-![Image](https://github.com/hy2632/cs224n/tree/master/a5_public/CS224n-A5-emb2-files/embedding_proj.jpg)
+![Image](https://raw.githubusercontent.com/hy2632/cs224n/master/a5_public/CS224n-A5-emb2-files/embedding_proj.jpg)
 
 | word        | closest word |
 | ----------- | ------------ |
