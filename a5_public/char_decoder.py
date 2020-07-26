@@ -119,7 +119,7 @@ class CharDecoder(nn.Module):
                 # 把current_char转换为一个tensor，首先先对应到int的id，然后强行unsqueeze两遍满足self.forward的参数input的形式
                 input_current_char = torch.tensor(self.target_vocab.char2id[current_char],device=device).unsqueeze(dim=0).unsqueeze(dim=0)
                 scores, dec_hidden = self.forward(input_current_char,dec_hidden)
-                probs = F.softmax(scores, dim=2)
+                probs = F.softmax(scores, dim=2) #07/25 这一步可以省略不要
                 current_char = self.target_vocab.id2char[int(torch.argmax(probs, dim=2).squeeze())]
                 if current_char == '}': break
                 output_word.append(current_char)
