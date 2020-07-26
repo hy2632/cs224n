@@ -109,7 +109,6 @@ Corpus BLEU: 99.66941696422141
 
 `This criterion combines nn.LogSoftmax() and nn.NLLLoss() in one single class.`
 loss 0.38, Corpus BLEU: 99.66941696422141
-t
 
 ## (c)
 
@@ -125,7 +124,8 @@ t
 对 cnn 和 sanity_check 都进行修改。由于默认使用了 sanitycheck 的值 m_word=21,实际上在写其他函数调用 CNN 类的时候没有定义 m_word 值，所以正好不需要改。
 参考：Tessa Scott<https://github.com/tessascott039/a5/blob/master/cnn.py>
 
-<https://github.com/pytorch/pytorch/issues/4166><https://stackoverflow.com/questions/56137869/is-it-possible-to-make-a-max-pooling-on-dynamic-length-sentences-without-padding>
+<https://github.com/pytorch/pytorch/issues/4166> 
+<https://stackoverflow.com/questions/56137869/is-it-possible-to-make-a-max-pooling-on-dynamic-length-sentences-without-padding>
 探讨了 nn.MaxPool1d 能不能有一个动态的 kernel_size。
 
 train 的结果：
@@ -174,6 +174,7 @@ traduces, traduzcas not in.
 ## (b)
 
 1. 回顾 Word2Vec。<https://projector.tensorflow.org/> 可以查询 k-nearest words。
+
    Markdown 表格生成<https://www.tablesgenerator.com/markdown_tables>
 
 | word        | closest word |
@@ -207,21 +208,21 @@ CharCNN: 对某个单词的各个字母进行 charembedding，然后经过 CNN/H
 ## (c)
 
 (45)正确的例子：
-| Category       |                                                                            |
+| Category | |
 |----------------|----------------------------------------------------------------------------|
-| ES             | A medida que se derrite un tmpano, estoy respirando su atmsfera ancestral. |
-| Ref            | As an eardrum melts, I am breathing in its ancient atmosphere.             |
-| A4 translation | As a `<unk>` `<unk>` I'm breathing its atmosphere `<unk>`                  |
-| A5 translation | As it melts a iceberg, I'm breathing its ancestral atmosphere.             |
+| ES | A medida que se derrite un tmpano, estoy respirando su atmsfera ancestral. |
+| Ref | As an eardrum melts, I am breathing in its ancient atmosphere. |
+| A4 translation | As a `<unk>` `<unk>` I'm breathing its atmosphere `<unk>` |
+| A5 translation | As it melts a iceberg, I'm breathing its ancestral atmosphere. |
 
 tímpano，témpano 是同义词，但一个翻译为耳膜一个翻译为冰山。这里冰山显然更为合适。
 
 (85)错误的例子：
-| Category       |                                                   |
+| Category | |
 |----------------|---------------------------------------------------|
-| ES             | Es el sndrome de insensibilidad a los andrgenos.  |
-| Ref            | It is the syndrome of insensitivity to androgens. |
-| A4 translation | It's called `<unk>` `<unk>`                       |
-| A5 translation | It's the syndrome of insulin insulin.             |
+| ES | Es el sndrome de insensibilidad a los andrgenos. |
+| Ref | It is the syndrome of insensitivity to androgens. |
+| A4 translation | It's called `<unk>` `<unk>` |
+| A5 translation | It's the syndrome of insulin insulin. |
 
-对于连续的`<unk>`，CharCNN的表现并没有很好改善（重复出现的insulin）。
+对于连续的`<unk>`，CharCNN 的表现并没有很好改善（重复出现的 insulin）。
