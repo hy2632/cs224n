@@ -169,15 +169,20 @@ class BiDAFAttention(nn.Module):
         See Also:
             Equation 1 in https://arxiv.org/abs/1611.01603
         """
-        c_len, q_len = c.size(1), q.size(1)
+        c_len, q_len = c.size(1), q.size(1) # 即 N, M
         c = F.dropout(c, self.drop_prob, self.training)  # (bs, c_len, hid_size)
         q = F.dropout(q, self.drop_prob, self.training)  # (bs, q_len, hid_size)
 
         # Shapes: (batch_size, c_len, q_len)
-        s0 = torch.matmul(c, self.c_weight).expand([-1, -1, q_len])
+
+        # 8/6 维度分析
+        s0 = torch.matmul(c, self.c_weight).expand([-1, -1, q_len]) 
+        # c:(bs, c_len, h); self.c_weight: (h, 1); mm: (bs, c_len, 1); after expand: (bs, c_len, q_len)
         s1 = torch.matmul(q, self.q_weight).transpose(1, 2)\
                                            .expand([-1, c_len, -1])
+        # (bs, q_len, 1) => (bs, 1, q_len) => (bs, c_len, q_len)
         s2 = torch.matmul(c * self.cq_weight, q.transpose(1, 2))
+        # (bs, c_len, h) * (1,1,h) => (bs_, c_len, h), * (bs, h, q_len) => (bs, c_len, q_len)
         s = s0 + s1 + s2 + self.bias
 
         return s
@@ -198,8 +203,8 @@ class BiDAFOutput(nn.Module):
     """
     def __init__(self, hidden_size, drop_prob):
         super(BiDAFOutput, self).__init__()
-        self.att_linear_1 = nn.Linear(8 * hidden_size, 1)
-        self.mod_linear_1 = nn.Linear(2 * hidden_size, 1)
+        self.att_linear_1 = nn.Linear(8 * hidden_size, 1) # g1, ... gn: (8H, 1)
+        self.mod_linear_1 = nn.Linear(2 * hidden_size, 1) # m1, ... mn: (2H, 1)
 
         self.rnn = RNNEncoder(input_size=2 * hidden_size,
                               hidden_size=hidden_size,
@@ -212,7 +217,7 @@ class BiDAFOutput(nn.Module):
     def forward(self, att, mod, mask):
         # Shapes: (batch_size, seq_len, 1)
         logits_1 = self.att_linear_1(att) + self.mod_linear_1(mod)
-        mod_2 = self.rnn(mod, mask.sum(-1))
+        mod_2 = self.rnn(mod, mask.sum(-1)) # RNNEncoder.forward(x, lengths)
         logits_2 = self.att_linear_2(att) + self.mod_linear_2(mod_2)
 
         # Shapes: (batch_size, seq_len)
