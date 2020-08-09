@@ -188,6 +188,8 @@ def add_common_args(parser):
     parser.add_argument('--word_emb_file',
                         type=str,
                         default='./data/word_emb.json')
+
+    # 08/08 layers 中 char_emb 的路径在这里
     parser.add_argument('--char_emb_file',
                         type=str,
                         default='./data/char_emb.json')

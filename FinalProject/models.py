@@ -8,6 +8,7 @@ import layers
 import torch
 import torch.nn as nn
 
+# import layers_QANet
 
 class BiDAF(nn.Module):
     """Baseline BiDAF model for SQuAD.
@@ -70,3 +71,22 @@ class BiDAF(nn.Module):
         out = self.out(att, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
 
         return out
+
+
+
+# # 增加 QANet 类
+# class QANet (nn.Module):
+#     """ QANet model for SQuAD.
+
+#     Based on the paper:
+#     "QANET: COMBINING LOCAL CONVOLUTION WITH GLOBAL SELF-ATTENTION FOR READING COMPREHENSION"
+#     by Adams Wei Yu , David Dohan, Minh-Thang Luong
+#     (https://arxiv.org/pdf/1804.09541).
+    
+#     """
+#     def __init__(self, word_vectors, char_vectors, hidden_size=128, f=128, k=5, e_char=200, 
+#                 e_word = 300, m_word = 16,):
+#         super(QANet, self).__init__()
+        
+#         self.char_emb = torch.randn()
+

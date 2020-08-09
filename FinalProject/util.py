@@ -54,15 +54,21 @@ class SQuAD(data.Dataset):
 
         if use_v2:
             # SQuAD 2.0: Use index 0 for no-answer token (token 1 = OOV)
-            batch_size, c_len, w_len = self.context_char_idxs.size()
+            batch_size, c_len, w_len = self.context_char_idxs.size() # 注意 context_char_idxs: (batch_size, c_len, w_len)
+            
+            # context_idxs 的开头加一个 token 1 表示 OOV. 
+            # (bs, c_len) -> (bs, c_len+1)
             ones = torch.ones((batch_size, 1), dtype=torch.int64)
             self.context_idxs = torch.cat((ones, self.context_idxs), dim=1)
             self.question_idxs = torch.cat((ones, self.question_idxs), dim=1)
 
+            # context_char_idxs 的每个句子开头加一个 token 1
+            # (bs, c_len, w_len) -> (bs, c_len+1, w_len)
             ones = torch.ones((batch_size, 1, w_len), dtype=torch.int64)
             self.context_char_idxs = torch.cat((ones, self.context_char_idxs), dim=1)
             self.question_char_idxs = torch.cat((ones, self.question_char_idxs), dim=1)
 
+            # y1s/y2s初始值, 长度为batch_size, 如果无答案则为 -1
             self.y1s += 1
             self.y2s += 1
 
@@ -107,17 +113,19 @@ def collate_fn(examples):
     def merge_0d(scalars, dtype=torch.int64):
         return torch.tensor(scalars, dtype=dtype)
 
-    def merge_1d(arrays, dtype=torch.int64, pad_value=0):
-        lengths = [(a != pad_value).sum() for a in arrays]
-        padded = torch.zeros(len(arrays), max(lengths), dtype=dtype)
+    def merge_1d(arrays, dtype=torch.int64, pad_value=0): # 1d 向量填充
+        lengths = [(a != pad_value).sum() for a in arrays] # 非 0 值长度 
+        padded = torch.zeros(len(arrays), max(lengths), dtype=dtype) # 初始化一个(batch_size, c_len) 的空 Tensor
         for i, seq in enumerate(arrays):
-            end = lengths[i]
-            padded[i, :end] = seq[:end]
+            end = lengths[i] #填充值都在句子结束后。 每个句子的结束点位置
+            padded[i, :end] = seq[:end] # 第i个句子从头到结束点的值复制到padded
         return padded
 
-    def merge_2d(matrices, dtype=torch.int64, pad_value=0):
-        heights = [(m.sum(1) != pad_value).sum() for m in matrices]
-        widths = [(m.sum(0) != pad_value).sum() for m in matrices]
+    def merge_2d(matrices, dtype=torch.int64, pad_value=0): # 2d 矩阵填充，类似。
+        # matrices: (bs, heights(可变), widths(可变))
+        # m: Tensor: (height, width)
+        heights = [(m.sum(1) != pad_value).sum() for m in matrices] # 高度， 某行全 0 才视为填充，对应char
+        widths = [(m.sum(0) != pad_value).sum() for m in matrices] # 宽度， 某列全 0 才视为填充
         padded = torch.zeros(len(matrices), max(heights), max(widths), dtype=dtype)
         for i, seq in enumerate(matrices):
             height, width = heights[i], widths[i]
@@ -127,7 +135,7 @@ def collate_fn(examples):
     # Group by tensor type
     context_idxs, context_char_idxs, \
         question_idxs, question_char_idxs, \
-        y1s, y2s, ids = zip(*examples)
+        y1s, y2s, ids = zip(*examples) # *args，直接将example这个tuple的五个元素分类进入list
 
     # Merge into batch tensors
     context_idxs = merge_1d(context_idxs)
@@ -188,12 +196,12 @@ class EMA:
                 self.shadow[name] = param.data.clone()
 
     def __call__(self, model, num_updates):
-        decay = min(self.decay, (1.0 + num_updates) / (10.0 + num_updates))
+        decay = min(self.decay, (1.0 + num_updates) / (10.0 + num_updates)) # decay 的方式: 两者最小，decay更激进？
         for name, param in model.named_parameters():
             if param.requires_grad:
                 assert name in self.shadow
                 new_average = \
-                    (1.0 - decay) * param.data + decay * self.shadow[name]
+                    (1.0 - decay) * param.data + decay * self.shadow[name] # 对 shadow 存储的参数进行更新
                 self.shadow[name] = new_average.clone()
 
     def assign(self, model):
@@ -205,8 +213,8 @@ class EMA:
         for name, param in model.named_parameters():
             if param.requires_grad:
                 assert name in self.shadow
-                self.original[name] = param.data.clone()
-                param.data = self.shadow[name]
+                self.original[name] = param.data.clone() # 对param.data进行备份
+                param.data = self.shadow[name] # 在 model 的原位置修改
 
     def resume(self, model):
         """Restore original parameters to a model. That is, put back
@@ -217,7 +225,7 @@ class EMA:
         for name, param in model.named_parameters():
             if param.requires_grad:
                 assert name in self.shadow
-                param.data = self.original[name]
+                param.data = self.original[name] #可以通过 self.original 对参数进行恢复
 
 
 class CheckpointSaver:
