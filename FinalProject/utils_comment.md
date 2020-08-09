@@ -82,9 +82,10 @@
     和 **logger** 相关，暂时没看懂。
 
 13. **def torch_from_json(path, dtype=torch.float32)**
-    从JSON文件加载torch.Tensor。
-    先用np读取再转换。
-    读取json文件一般方法：
+    从 JSON 文件加载 torch.Tensor。
+    先用 np 读取再转换。
+    读取 json 文件一般方法：
+
     ```python
     with open(path, 'r') as fh:
         _ = json.load(fh)
@@ -92,4 +93,26 @@
     ```
 
 14. **def discretize(p_start, p_end, max_len=15, no_answer=False)**
-    
+
+    1. 功能：比较关键，把概率转换为最终`start_idx`和`end_idx`
+    2. `no_answer(bool)` 分类：是否允许空的 pred。SQuAD2.0 应该都打开该选项。
+    3. `p_start/p_end(torch.Tensor)` : (batch_size, c_len)
+    4. `max_len`: 限定 `end_idx - start_idx` 范围
+    5. `end_idx`必须在`start_idx`后面，用`torch.triu()`限定。通过两个上三角阵相减得到一个斜长条形矩阵。
+
+15. **def convert_tokens(eval_dict, qa_id, y_start_list, y_end_list, no_answer)**
+
+    1. 在 train.py 和 test.py 中用
+    2. 将预测出来的 start_idx 和 end_idx 转换为 ID 到 answer 文本的字典
+    3. 最终的 pred_dict 会通过 util.visualize 在 tensorboard 显示
+
+16. **def metric_max_over_ground_truths(metric_fn, prediction, ground_truths)**
+
+17. **def eval_dicts(gold_dict, pred_dict, no_answer)**
+
+    1. eval_dicts, 用于计算一堆 example 的整体得分
+    2. em 就是 1/0。 直接得出比例
+    3. f1 在 0-1 之间
+
+18. **def normalize_answer(s)**
+    把字符串规范化。

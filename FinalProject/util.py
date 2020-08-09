@@ -588,10 +588,12 @@ def discretize(p_start, p_end, max_len=15, no_answer=False):
     p_joint = torch.matmul(p_start, p_end)  # (batch_size, c_len, c_len)
 
     # Restrict to pairs (i, j) such that i <= j <= i + max_len - 1
+    # 08/08: 限定end_idx和start_idx关系
     c_len, device = p_start.size(1), p_start.device
     is_legal_pair = torch.triu(torch.ones((c_len, c_len), device=device))
     is_legal_pair -= torch.triu(torch.ones((c_len, c_len), device=device),
-                                diagonal=max_len)
+                                diagonal=max_len) # diagonal 表示从正对角线向右上第几个对角线开始
+    # is_legal_pair 现在是一个斜长条
     if no_answer:
         # Index 0 is no-answer
         p_no_answer = p_joint[:, 0, 0].clone()
@@ -599,10 +601,10 @@ def discretize(p_start, p_end, max_len=15, no_answer=False):
         is_legal_pair[:, 0] = 0
     else:
         p_no_answer = None
-    p_joint *= is_legal_pair
+    p_joint *= is_legal_pair #只取斜长条范围内的概率pair
 
     # Take pair (i, j) that maximizes p_joint
-    max_in_row, _ = torch.max(p_joint, dim=2)
+    max_in_row, _ = torch.max(p_joint, dim=2) #torch.max returns values & indices. max_in_row: (bs, c_len)
     max_in_col, _ = torch.max(p_joint, dim=1)
     start_idxs = torch.argmax(max_in_row, dim=-1)
     end_idxs = torch.argmax(max_in_col, dim=-1)
@@ -610,7 +612,7 @@ def discretize(p_start, p_end, max_len=15, no_answer=False):
     if no_answer:
         # Predict no-answer whenever p_no_answer > max_prob
         max_prob, _ = torch.max(max_in_col, dim=-1)
-        start_idxs[p_no_answer > max_prob] = 0
+        start_idxs[p_no_answer > max_prob] = 0 # batch里的examples，如果p_no_answer更大...
         end_idxs[p_no_answer > max_prob] = 0
 
     return start_idxs, end_idxs
@@ -651,6 +653,13 @@ def convert_tokens(eval_dict, qa_id, y_start_list, y_end_list, no_answer):
 
 
 def metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
+    
+    """
+    @param metric_fn: 可以是 F.nll_loss / compute_EM / compute_F1
+    @prediction
+    @ground_truths: metric_fn 用到的参数 list
+    """
+    
     if not ground_truths:
         return metric_fn(prediction, '')
     scores_for_ground_truths = []
@@ -710,7 +719,7 @@ def normalize_answer(s):
 def get_tokens(s):
     if not s:
         return []
-    return normalize_answer(s).split()
+    return normalize_answer(s).split() #去空格，生成列表
 
 
 def compute_em(a_gold, a_pred):
