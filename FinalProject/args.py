@@ -93,6 +93,12 @@ def get_train_args():
     add_common_args(parser)
     add_train_test_args(parser)
 
+    # 08/09 add char_dim in training.
+    parser.add_argument('--char_dim',
+                    type=int,
+                    default=200, # 08/09 change char_dim to 200.
+                    help='Size of char vectors (char-level embeddings)')
+
     parser.add_argument('--eval_steps',
                         type=int,
                         default=50000,
@@ -193,6 +199,7 @@ def add_common_args(parser):
     parser.add_argument('--char_emb_file',
                         type=str,
                         default='./data/char_emb.json')
+    
     parser.add_argument('--train_eval_file',
                         type=str,
                         default='./data/train_eval.json')

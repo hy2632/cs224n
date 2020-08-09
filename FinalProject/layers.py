@@ -2,6 +2,7 @@
 
 Author:
     Chris Chute (chute@stanford.edu)
+    *Hua Yao (hy2632@columbia.edu)
 """
 
 import torch
@@ -11,61 +12,173 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from util import masked_softmax
 
+# 08/09
+from CNN import CNN
 
-class Embedding(nn.Module):
-    """Embedding layer used by BiDAF, without the character-level component.
+# 08/09 BiDAF_Char
+class Char_Embedding(nn.Module):
+    """Character-level Embedding layer used by BiDAF
+
+    Obtain the char-level embedding of each word using CNN. input channel size = output ~
+
+    Args:
+        char_vocab_size (int): # of chars, in char2idx.json: 1376
+        char_dim (int): args.char_dim, default=64
+        drop_prob (float): Probability of zero-ing out activations
+        hidden_size(int)
+        kernel_size (int): parameter in CNN for char_emb
+        padding (int): parameter in CNN for char_emb
+    
+    Reference: https://github.com/galsang/BiDAF-pytorch/blob/master/model/model.py
+
+    """
+    def __init__(self, char_vocab_size, char_dim, drop_prob, hidden_size, kernel_size=5, padding=1):
+        super(Char_Embedding, self).__init__()
+        # https://github.com/galsang/BiDAF-pytorch/blob/master/model/model.py
+        # https://github.com/hy2632/cs224n/blob/master/a5_public/model_embeddings.py
+
+        self.char_emb = nn.Embedding(char_vocab_size, char_dim, padding_idx=1)
+        # char_vocab_size = len(char2idx) = 1376, char_dim = 64(default) in args
+        nn.init.uniform_(self.char_emb.weight, -0.001, 0.001)
+        self.cnn = CNN(char_dim, char_dim, kernel_size, padding)
+        self.dropout = nn.Dropout(drop_prob)
+        self.proj = nn.Linear(char_dim, hidden_size)
+
+    def forward(self, x):
+        """
+        @param x: (bs, seq_len, word_len)
+        return: (bs, seq_len, char_channel_size=char_dim)
+
+        """
+        x = self.char_emb(x) # (batch_size, seq_len, word_len, char_dim)
+        x = self.cnn(x) #(batch_size, seq_len, char_dim)
+        x = self.dropout(x)
+        x = self.proj(x) #(batch_size, seq_len, hidden_size)
+        return x
+
+
+# 08/09 BiDAF_Char
+class Word_Embedding(nn.Module):
+    """Word Embedding layer used by BiDAF
 
     Word-level embeddings are further refined using a 2-layer Highway Encoder
     (see `HighwayEncoder` class for details).
 
     Args:
-        word_vectors (torch.Tensor): Pre-trained word vectors.
+        word_vectors (torch.Tensor): Pre-trained word vectors. Shape: (word_vocab_size=88714, word_dim=300)
         hidden_size (int): Size of hidden activations.
         drop_prob (float): Probability of zero-ing out activations
     """
     def __init__(self, word_vectors, hidden_size, drop_prob):
-        super(Embedding, self).__init__()
+        super(Word_Embedding, self).__init__()
         self.drop_prob = drop_prob
         self.embed = nn.Embedding.from_pretrained(word_vectors)
-        self.proj = nn.Linear(word_vectors.size(1), hidden_size, bias=False)
-        self.hwy = HighwayEncoder(2, hidden_size)
+        self.dropout = nn.Dropout(drop_prob)
+        self.proj = nn.Linear(word_vectors.size(1), hidden_size)
 
     def forward(self, x):
-        emb = self.embed(x)   # (batch_size, seq_len, embed_size)
-        emb = F.dropout(emb, self.drop_prob, self.training)
-        emb = self.proj(emb)  # (batch_size, seq_len, hidden_size)
-        emb = self.hwy(emb)   # (batch_size, seq_len, hidden_size)
+        x = self.embed(x)   # (batch_size, seq_len, embed_size)
+        x = self.dropout(x)
+        x = self.proj(x) # (batch_size, seq_len, hidden_size)
+        return x
 
-        return emb
+# class Embedding(nn.Module):
+#     """Embedding layer used by BiDAF, without the character-level component.
+
+#     Word-level embeddings are further refined using a 2-layer Highway Encoder
+#     (see `HighwayEncoder` class for details).
+
+#     Args:
+#         word_vectors (torch.Tensor): Pre-trained word vectors.
+#         hidden_size (int): Size of hidden activations.
+#         drop_prob (float): Probability of zero-ing out activations
+#     """
+#     def __init__(self, word_vectors, hidden_size, drop_prob):
+#         super(Embedding, self).__init__()
+#         self.drop_prob = drop_prob
+#         self.embed = nn.Embedding.from_pretrained(word_vectors)
+#         self.proj = nn.Linear(word_vectors.size(1), hidden_size, bias=False)
+#         self.hwy = HighwayEncoder(2, hidden_size)
+
+#     def forward(self, x):
+#         emb = self.embed(x)   # (batch_size, seq_len, embed_size)
+#         emb = F.dropout(emb, self.drop_prob, self.training)
+#         emb = self.proj(emb)  # (batch_size, seq_len, hidden_size)
+#         emb = self.hwy(emb)   # (batch_size, seq_len, hidden_size)
+
+#         return emb
 
 
 class HighwayEncoder(nn.Module):
-    """Encode an input sequence using a highway network.
+    """Encode an input sequence using a highway network. 
+       Adjusted in order to combine char-level & word-level embeddings.
 
     Based on the paper:
     "Highway Networks"
     by Rupesh Kumar Srivastava, Klaus Greff, Jürgen Schmidhuber
     (https://arxiv.org/abs/1505.00387).
 
+    In BiDAF paper 2.2, the concatenation of the character and word embedding vectors is passed
+    to a 2-layer Highway Network.
+
     Args:
         num_layers (int): Number of layers in the highway encoder.
         hidden_size (int): Size of hidden activations.
+        word_dim (int): dim of word embedding vectors
+        char_dim (int): 
     """
     def __init__(self, num_layers, hidden_size):
         super(HighwayEncoder, self).__init__()
-        self.transforms = nn.ModuleList([nn.Linear(hidden_size, hidden_size)
+        self.transforms = nn.ModuleList([nn.Linear(2*hidden_size, 2*hidden_size)
                                          for _ in range(num_layers)])
-        self.gates = nn.ModuleList([nn.Linear(hidden_size, hidden_size)
+        self.gates = nn.ModuleList([nn.Linear(2*hidden_size, 2*hidden_size)
                                     for _ in range(num_layers)])
 
-    def forward(self, x):
+    def forward(self, x1, x2):
+        """
+        @param x1: (batch_size, seq_len, hidden_size)
+        @param x2: (batch_size, seq_len, hidden_size)
+        
+        return: x: (batch_size, seq_len, 2*hidden_size)
+
+        """
+        x = torch.cat([x1, x2], dim=-1) # x (batch_size, seq_len, 2*hidden_size)
+
         for gate, transform in zip(self.gates, self.transforms):
-            # Shapes of g, t, and x are all (batch_size, seq_len, hidden_size)
+            # Shapes of g, t, and x are all (batch_size, seq_len, 2*hidden_size)
             g = torch.sigmoid(gate(x))
             t = F.relu(transform(x))
             x = g * t + (1 - g) * x
 
         return x
+
+# class HighwayEncoder(nn.Module):
+#     """Encode an input sequence using a highway network.
+
+#     Based on the paper:
+#     "Highway Networks"
+#     by Rupesh Kumar Srivastava, Klaus Greff, Jürgen Schmidhuber
+#     (https://arxiv.org/abs/1505.00387).
+
+#     Args:
+#         num_layers (int): Number of layers in the highway encoder.
+#         hidden_size (int): Size of hidden activations.
+#     """
+#     def __init__(self, num_layers, hidden_size):
+#         super(HighwayEncoder, self).__init__()
+#         self.transforms = nn.ModuleList([nn.Linear(hidden_size, hidden_size)
+#                                          for _ in range(num_layers)])
+#         self.gates = nn.ModuleList([nn.Linear(hidden_size, hidden_size)
+#                                     for _ in range(num_layers)])
+
+#     def forward(self, x):
+#         for gate, transform in zip(self.gates, self.transforms):
+#             # Shapes of g, t, and x are all (batch_size, seq_len, hidden_size)
+#             g = torch.sigmoid(gate(x))
+#             t = F.relu(transform(x))
+#             x = g * t + (1 - g) * x
+
+#         return x
 
 
 class RNNEncoder(nn.Module):
