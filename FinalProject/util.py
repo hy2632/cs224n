@@ -250,7 +250,7 @@ class CheckpointSaver:
         super(CheckpointSaver, self).__init__()
 
         self.save_dir = save_dir
-        self.max_checkpoints = max_checkpoints
+        self.max_checkpoints = max_checkpoints #default=5,'Maximum number of checkpoints to keep on disk.')
         self.metric_name = metric_name
         self.maximize_metric = maximize_metric
         self.best_val = None
@@ -294,7 +294,7 @@ class CheckpointSaver:
             'model_state': model.cpu().state_dict(),
             'step': step
         }
-        model.to(device)
+        model.to(device) #迁移到device
 
         checkpoint_path = os.path.join(self.save_dir,
                                        f'step_{step}.pth.tar')

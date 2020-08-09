@@ -20,43 +20,7 @@ SQuAD leaderboard: <https://rajpurkar.github.io/SQuAD-explorer/>
 
 
 
-## util.py 注释
 
-1. **class SQuAD**: 处理data.dataset，将字典转化到类变量
-2. **def collate_fn(examples) -> (lists)**
-   1. 将examples: list(tuple(5)) 分为tuple(5 lists)的技巧 zip(*examples)
-      ```python
-      example1 = (1, "str", [3])
-      example2 = (2, "str2", [100])
-      examples = (example1, example2)
-      ints, strs, lists = zip(*examples)
-      ints, strs, lists
-      -----------------
-      ((1, 2), ('str', 'str2'), ([3], [100]))
-      ```
-   2. 输入是一堆example(tuple)的list，输出是5个list的tuple。
-      ```python
-      (context_idxs, context_char_idxs,
-            question_idxs, question_char_idxs,
-            y1s, y2s, ids)
-      ```
-3. **class AverageMeter**
-   平均值记录和更新，包含avg, sum, count
-
-4. **class EMA(model, decay)**
-   ```python
-   self.decay = decay
-   self.shadow = {}  
-   self.original = {}
-   ```
-
-   1. shadow存放需要梯度的参数
-   2. model.named_parameters(): 可转换为dict: {name: value}
-   3. assign 负责更新（也备份到self.original），resume 负责用 self.original 进行恢复
-
-5. **class CheckpointSaver**
-   1. 
-   
 
 
 
@@ -65,11 +29,9 @@ SQuAD leaderboard: <https://rajpurkar.github.io/SQuAD-explorer/>
 
 
 ## 08/08 为BiDAF 增加 char-level
-===
    5.2.1 Character-level Embeddings
    the util.SQuAD class returns character indices, and these are
    loaded in train.py and test.py
-===
 
 
 
