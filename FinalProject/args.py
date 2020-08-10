@@ -93,12 +93,6 @@ def get_train_args():
     add_common_args(parser)
     add_train_test_args(parser)
 
-    # 08/09 add char_dim in training.
-    parser.add_argument('--char_dim',
-                    type=int,
-                    default=200, # 08/09 change char_dim to 200.
-                    help='Size of char vectors (char-level embeddings)')
-
     parser.add_argument('--eval_steps',
                         type=int,
                         default=50000,
@@ -141,6 +135,16 @@ def get_train_args():
                         default=0.999,
                         help='Decay rate for exponential moving average of parameters.')
 
+
+
+    # 08/09 add char_dim in training.
+    parser.add_argument('--char_dim',
+                    type=int,
+                    default=200, # 08/09 change char_dim to 200.
+                    help='Size of char vectors (char-level embeddings)')
+
+
+
     args = parser.parse_args()
 
     if args.metric_name == 'NLL':
@@ -171,6 +175,15 @@ def get_test_args():
                         type=str,
                         default='submission.csv',
                         help='Name for submission file.')
+
+
+    # 08/09 add char_dim in training.
+    parser.add_argument('--char_dim',
+                    type=int,
+                    default=200, # 08/09 change char_dim to 200.
+                    help='Size of char vectors (char-level embeddings)')
+
+
 
     # Require load_path for test.py
     args = parser.parse_args()

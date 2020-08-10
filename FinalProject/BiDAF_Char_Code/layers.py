@@ -37,7 +37,7 @@ class Char_Embedding(nn.Module):
         # https://github.com/galsang/BiDAF-pytorch/blob/master/model/model.py
         # https://github.com/hy2632/cs224n/blob/master/a5_public/model_embeddings.py
 
-        self.char_emb = nn.Embedding(char_vocab_size, char_dim, padding_idx=1)
+        self.char_emb = nn.Embedding(char_vocab_size, char_dim, padding_idx=0) # 08/10 此处应改成 0.
         # char_vocab_size = len(char2idx) = 1376, char_dim = 64(default) in args
         nn.init.uniform_(self.char_emb.weight, -0.001, 0.001)
         self.cnn = CNN(char_dim, char_dim, kernel_size, padding)
@@ -207,6 +207,13 @@ class RNNEncoder(nn.Module):
 
     def forward(self, x, lengths):
         # Save original padded length for use by pad_packed_sequence
+        # 08/09 x: (batch, seq_len, ?hidden_size)
+
+        # lengths: c_len/q_len, 通过
+        # c_mask = torch.zeros_like(cw_idxs) != cw_idxs
+        # c_len, q_len = c_mask.sum(-1), q_mask.sum(-1)
+        # 计算得出
+
         orig_len = x.size(1)
 
         # Sort by length and pack sequence for RNN
@@ -282,7 +289,7 @@ class BiDAFAttention(nn.Module):
         See Also:
             Equation 1 in https://arxiv.org/abs/1611.01603
         """
-        c_len, q_len = c.size(1), q.size(1) # 即 N, M
+        c_len, q_len = c.size(1), q.size(1) 
         c = F.dropout(c, self.drop_prob, self.training)  # (bs, c_len, hid_size)
         q = F.dropout(q, self.drop_prob, self.training)  # (bs, q_len, hid_size)
 
@@ -295,7 +302,7 @@ class BiDAFAttention(nn.Module):
                                            .expand([-1, c_len, -1])
         # (bs, q_len, 1) => (bs, 1, q_len) => (bs, c_len, q_len)
         s2 = torch.matmul(c * self.cq_weight, q.transpose(1, 2))
-        # (bs, c_len, h) * (1,1,h) => (bs_, c_len, h), * (bs, h, q_len) => (bs, c_len, q_len)
+        # (bs, c_len, h) * (1,1,h) => (bs, c_len, h), * (bs, h, q_len) => (bs, c_len, q_len)
         s = s0 + s1 + s2 + self.bias
 
         return s
@@ -319,8 +326,9 @@ class BiDAFOutput(nn.Module):
         self.att_linear_1 = nn.Linear(8 * hidden_size, 1) # g1, ... gn: (8H, 1)
         self.mod_linear_1 = nn.Linear(2 * hidden_size, 1) # m1, ... mn: (2H, 1)
 
+        # 08/10 Bi-LSTM 应用在 2h size 的 modeling layer outputs 上
         self.rnn = RNNEncoder(input_size=2 * hidden_size,
-                              hidden_size=hidden_size,
+                              hidden_size=hidden_size, # 双向，出来也是 2h
                               num_layers=1,
                               drop_prob=drop_prob)
 
@@ -329,6 +337,9 @@ class BiDAFOutput(nn.Module):
 
     def forward(self, att, mod, mask):
         # Shapes: (batch_size, seq_len, 1)
+        # 08/10: mod: (batch_size, seq_len, 2h)
+        # att: (batch_size, seq_len, 8h)
+        # mask: (batch_size, seq_len, 1)
         logits_1 = self.att_linear_1(att) + self.mod_linear_1(mod)
         mod_2 = self.rnn(mod, mask.sum(-1)) # RNNEncoder.forward(x, lengths)
         logits_2 = self.att_linear_2(att) + self.mod_linear_2(mod_2)
