@@ -63,7 +63,7 @@ def main(args):
         num_conv_per_embencblock=4,
         num_conv_per_modencblock=2,
         head_num=8,
-        maximum_context_length=1000,
+        maximum_context_length=500,
     )
     # ==============================================================================
 
@@ -85,8 +85,10 @@ def main(args):
                                  log=log)
 
     # Get optimizer and scheduler
-    optimizer = optim.Adadelta(model.parameters(),
+    optimizer = optim.Adam(model.parameters(),
                                args.lr,
+                               (0.8, 0.999),
+                               eps = 1e-7,
                                weight_decay=args.l2_wd)
     scheduler = sched.LambdaLR(optimizer, lambda s: 1.)  # Constant LR
 

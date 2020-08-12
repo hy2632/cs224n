@@ -220,8 +220,6 @@ class QANet(nn.Module):
                 num_conv=num_conv_per_modencblock,
                 head_num=head_num,
                 maximum_context_length=maximum_context_length)
-        
-        self.stacked_mod_enc_blocks = nn.ModuleList([self.mod_enc_block] * 7)
 
         self.out = Output(hidden_size=d_model, drop_prob=drop_prob)
         
@@ -242,9 +240,9 @@ class QANet(nn.Module):
         q_enc = self.emb_enc_block(q_emb, q_mask)
         c2q_att = self.c2q_att(c_enc, q_enc, c_mask, q_mask)
 
-        m0 = self.mod_enc_block(c2q_att, c_mask)
-        m1 = self.mod_enc_block(m0, c_mask)
-        m2 = self.mod_enc_block(m1, c_mask)
+        m0 = self.mod_enc_blocks(c2q_att, c_mask)
+        m1 = self.mod_enc_blocks(m0, c_mask)
+        m2 = self.mod_enc_blocks(m1, c_mask)
 
         out = self.out(m0, m1, m2, c_mask) # logp1, logp2
 

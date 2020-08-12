@@ -51,6 +51,30 @@ class Word_Embedding(nn.Module):
         return x
 
 
+class CNN_for_Char_Embedding(nn.Module):
+    def __init__(self, f: int, e_char: int = 50, k: int = 5, padding: int = 1,):
+        super().__init__()
+        self.f = f
+        self.conv1d = nn.Conv1d(
+            in_channels=e_char,
+            out_channels=f,
+            kernel_size=k,
+            padding=padding,
+            bias=True,
+        )
+    def forward(
+        self,
+        x_reshaped: torch.Tensor,
+    ) -> torch.Tensor:
+        """ Map from x_reshaped to x_conv_out\n
+            @param x_reshaped (Tensor): Tensor with shape of (batch_size, sentence_length, m_word, e_char) \n
+            @return x_conv_out (Tensor) : Tensor with shape of (batch_size, sentence_length, e_word=f) \n
+        """
+        (batch_size, sentence_length, m_word, e_char) = tuple(x_reshaped.size())
+        x_conv = self.conv1d(x_reshaped.contiguous().view(sentence_length*batch_size, e_char, m_word))
+        x_conv_out = torch.max(F.relu(x_conv), dim=2)[0].contiguous().view(batch_size, sentence_length, self.f)
+        return x_conv_out
+
 class Char_Embedding(nn.Module):
     """Character-level Embedding layer used by BiDAF
 
@@ -80,10 +104,9 @@ class Char_Embedding(nn.Module):
         # https://github.com/hy2632/cs224n/blob/master/a5_public/model_embeddings.py
 
         self.char_emb = nn.Embedding(char_vocab_size, char_dim,
-                                     padding_idx=0)  # 08/10 此处应改成 0.
-        # char_vocab_size = len(char2idx) = 1376, char_dim = 64(default) in args
+                                     padding_idx=0)  
         nn.init.uniform_(self.char_emb.weight, -0.001, 0.001)
-        self.cnn = CNN(char_dim, char_dim, 5, 2) 
+        # self.cnn = CNN_for_Char_Embedding(char_dim, char_dim, 5, 2)
         self.dropout = nn.Dropout(drop_prob)
 
     def forward(self, x):
@@ -93,9 +116,8 @@ class Char_Embedding(nn.Module):
 
         """
         x = self.char_emb(x)  # (batch_size, seq_len, word_len, char_dim)
-        x = self.cnn(x) #(batch_size, seq_len, char_dim) 
-        # x = torch.max(x, dim=2, keepdim=True)[0].squeeze(
-        #     dim=2)  # (batch_size, seq_len, char_dim)
+        # x = self.cnn(x) #(batch_size, seq_len, char_dim) 
+        x = torch.max(x, dim=2, keepdim=True)[0].squeeze(dim=2)  # (batch_size, seq_len, char_dim)
         x = self.dropout(x)
         return x
 
@@ -489,6 +511,7 @@ class ModelEncoderBlock(nn.Module):
                  maximum_context_length=1000):
         super().__init__()
         self.num_conv = num_conv
+        self.block_layers = block_layers
 
         self.posenc = PositionalEncoding(input_dim=4 * d_model,
                                          dropout=drop_prob,
@@ -515,13 +538,11 @@ class ModelEncoderBlock(nn.Module):
         # x: (batch_size, seq_len, word_dim+char_dim)
         # For an input x and a given operation f, the output is f(layernorm(x)) +x,
         x = self.posenc(x)
-
         for i in range(self.num_conv):
             x = self.cnn(self.layernorm(x))
 
         x = self.att(self.layernorm(x), mask)
         x = self.ffn(self.layernorm(x))
-
         return x
 
 
