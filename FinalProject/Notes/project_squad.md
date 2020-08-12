@@ -84,4 +84,5 @@ lr = 0.001, l2_wd = 3e-7
 
 
 几个疑问点：
-1. word_emb + char_emb 后每个词是500维，
+1. char_emb 里还是得用CNN
+2. word_emb + char_emb 后每个词是500维，一开始变为d_model=128需要

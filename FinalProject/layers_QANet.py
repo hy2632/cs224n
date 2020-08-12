@@ -9,6 +9,7 @@ import torch
 from torch import dropout
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.functional import layer_norm
 
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from util import masked_softmax
@@ -82,7 +83,7 @@ class Char_Embedding(nn.Module):
                                      padding_idx=0)  # 08/10 此处应改成 0.
         # char_vocab_size = len(char2idx) = 1376, char_dim = 64(default) in args
         nn.init.uniform_(self.char_emb.weight, -0.001, 0.001)
-        # self.cnn = CNN(char_dim, char_dim, kernel_size, padding) # 08/10 这里不用CNN了
+        self.cnn = CNN(char_dim, char_dim, 5, 2) 
         self.dropout = nn.Dropout(drop_prob)
 
     def forward(self, x):
@@ -92,9 +93,9 @@ class Char_Embedding(nn.Module):
 
         """
         x = self.char_emb(x)  # (batch_size, seq_len, word_len, char_dim)
-        # x = self.cnn(x) #(batch_size, seq_len, char_dim) # 08/10 这里不用CNN了
-        x = torch.max(x, dim=2, keepdim=True)[0].squeeze(
-            dim=2)  # (batch_size, seq_len, char_dim)
+        x = self.cnn(x) #(batch_size, seq_len, char_dim) 
+        # x = torch.max(x, dim=2, keepdim=True)[0].squeeze(
+        #     dim=2)  # (batch_size, seq_len, char_dim)
         x = self.dropout(x)
         return x
 
@@ -161,42 +162,45 @@ class EmbeddingEncoderBlock(nn.Module):
 
         self.num_conv = num_conv
 
-        self.posenc = PositionalEncoding(input_dim=word_dim + char_dim,
-                                         dropout=drop_prob,
-                                         max_len=maximum_context_length)
         # init只在最开始将 p1+p2=500 转换到 d_model=128 时使用
+        # 在posenc前，不用residual_block
         self.cnn_init = CNN(input_dim=word_dim + char_dim,
                             kernel_size=kernel_size,
                             padding=padding,
-                            filters=d_model)
+                            filters=d_model,
+                            residual_block=False)
+
+        self.posenc = PositionalEncoding(input_dim=d_model,
+                                         dropout=drop_prob,
+                                         max_len=maximum_context_length)
+        
         self.cnn = CNN(input_dim=d_model,
                        kernel_size=kernel_size,
                        padding=padding,
-                       filters=d_model)
+                       filters=d_model,
+                       residual_block=True)
 
         self.layernorm = LayerNorm(d_model)
 
         self.att = MultiHeadedAttention(h=head_num,
                                         d_model=d_model,
-                                        dropout=drop_prob)
+                                        dropout=drop_prob,
+                                        residual_block=True)
         self.ffn = FFN(input_dim=d_model,
                        output_dim=d_model,
-                       dropout=drop_prob)
+                       dropout=drop_prob,
+                       residual_block=True)
 
     def forward(self, x, mask):
         # x: (batch_size, seq_len, word_dim+char_dim)
         # For an input x and a given operation f, the output is f(layernorm(x)) +x,
-        x = self.posenc(x)
+        
         x = self.cnn_init(x)
-
+        x = self.posenc(x)
         for i in range(self.num_conv):
-            x_prev = x
-            x = x_prev + self.cnn(self.layernorm(x))
-        x_prev = x
-        x = x_prev + self.att(self.layernorm(x), mask)
-        x_prev = x
-        x = x_prev + self.ffn(self.layernorm(x))
-
+            x = self.cnn(self.layernorm(x))
+        x = self.att(self.layernorm(x), mask)
+        x = self.ffn(self.layernorm(x))
         return x
 
 
@@ -228,124 +232,6 @@ class PositionalEncoding(nn.Module):
                                         requires_grad=False)
         return self.dropout(x)
 
-
-# class PositionalEncoding(nn.Module):
-#     """
-#     Add position information to input tensor.
-#     :Examples:
-#         >>> m = PositionalEncoding(d_model=6, max_len=10, dropout=0)
-#         >>> input = torch.randn(3, 10, 6)
-#         >>> output = m(input)
-    
-#     Reference:
-#         (https://github.com/BangLiu/QANet-PyTorch/blob/master/model/modules/position.py)
-#     """
-
-#     def __init__(self, input_dim, dropout=0, max_len=5000):
-#         """
-#         :param input_dim
-#         :param dropout: dropout rate
-#         :param max_len: maximum sequence length
-#         """
-#         super(PositionalEncoding, self).__init__()
-#         self.dropout = nn.Dropout(p=dropout)
-
-#         # Compute the positional encodings once in log space.
-#         pe = torch.zeros(max_len, input_dim)
-#         position = torch.arange(0., max_len).unsqueeze(1)
-#         div_term = torch.exp(torch.arange(0., input_dim, 2) *
-#                              -(math.log(10000.0) / input_dim))
-#         pe[:, 0::2] = torch.sin(position * div_term)
-#         pe[:, 1::2] = torch.cos(position * div_term)
-#         pe = pe.unsqueeze(0)
-#         self.register_buffer('pe', pe)
-
-#     def forward(self, x):
-#         """
-#         :Input: (batch_num, seq_length, hidden_size)
-#         :Output: (batch_num, seq_length, hidden_size)
-#         """
-#         x = x + torch.autograd.Variable(self.pe[:, :x.size(1)], requires_grad=False)
-#         return self.dropout(x)
-
-
-# Convolution-layer:
-class CNN(nn.Module):
-    """ CNN, mapping x to x_conv_out \n
-
-    Args:
-        @param input_dim (int): first cnn default as word_dim+char_dim=p1+p2=500, cnn 2-4 as 128\n
-        @param kernel_size (int): default as 7 \n
-        @param padding(int): default as 3
-        @param filters (int): number of filters, default as 128
-    """
-    def __init__(
-        self,
-        input_dim: int,
-        kernel_size: int = 7,
-        padding: int = 3,
-        filters: int = 128,
-    ):
-        super(CNN, self).__init__()
-        self.conv = nn.Conv1d(
-            in_channels=input_dim,
-            out_channels=filters,
-            kernel_size=kernel_size,
-            padding=padding,
-            bias=True,
-        )
-
-    def forward(self, x):
-        """
-        Args:
-            @param x (Tensor): with shape of (batch_size, seq_len, input_dim=500/128) \n
-        return:
-            x_conv_out (torch.Tensor): with shape of (batch_size, seq_len, filters=128)
-        """
-        x_conv_out = self.conv(x.permute(0, 2, 1)).permute(0, 2, 1)
-        return x_conv_out
-
-
-# class Multihead_Attention(nn.Module):
-#     """ Multihead_Attention layer in the Encoder Block
-
-#     Based on the paper:
-#     "Attention is all you need"
-#     by Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, et al.
-#     (https://arxiv.org/abs/1706.03762)
-
-#     Reference:
-#     (https://github.com/renjunxiang/Multihead-Attention/blob/master/Attention.py)
-#     (https://github.com/setoidz/QANet-pytorch/blob/master/models.py)
-
-#     Args:
-
-#     """
-#     def __init__(
-#         self,
-#         d_model=128,
-#         num_heads=8,
-#         dropout_rate=0.,
-#     ):
-#         super(Multihead_Attention, self).__init__()
-#         d_k = d_v = d_model / num_heads
-#         self.Q = nn.Linear(d_k, d_model)
-#         self.K = nn.Linear(d_k, d_model)
-#         self.V = nn.Linear(d_v, d_model)
-#         self.dropout = nn.Dropout(dropout_rate)
-#         self.scaling = torch.sqrt(1/d_k)
-
-#     def forward(self, x):
-#         """
-#         Args:
-#             x (torch.Tensor): (batch_size, seq_len, input_dim)
-
-#         return:
-#             att (torch.Tensor): (batch_size, seq_len, )
-
-#         """
-
-
 class LayerNorm(nn.Module):
     """Construct a layernorm module (See citation for details).
     
@@ -363,46 +249,94 @@ class LayerNorm(nn.Module):
         std = x.std(-1, keepdim=True)
         return self.a_2 * (x - mean) / (std + self.eps) + self.b_2
 
+# Convolution-layer:
+class CNN(nn.Module):
+    """ CNN, mapping x to x_conv_out \n
 
-def attention(query, key, value, mask=None, dropout=None):
-    """ Compute 'Scaled Dot Product Attention'
+    Args:
+        @param input_dim (int): first cnn default as word_dim+char_dim=p1+p2=500, cnn 2-4 as 128\n
+        @param kernel_size (int): default as 7 \n
+        @param padding(int): default as 3
+        @param filters (int): number of filters, default as 128
 
-    Reference:
-        (http://nlp.seas.harvard.edu/2018/04/03/attention.html)
-        (https://github.com/BangLiu/QANet-PyTorch/blob/master/model/QANet.py)
+        @param residual_block (bool): True within a block
     """
-    # q, k, v: (batch_size, h=8, seq_len, d_k=16)
-    # mask: (batch_size, seq_len)
+    def __init__(
+        self,
+        input_dim: int,
+        kernel_size: int = 7,
+        padding: int = 3,
+        filters: int = 128,
+        residual_block: bool = True
+    ):
+        super(CNN, self).__init__()
+        self.residual_block = residual_block
+        self.conv = nn.Conv1d(
+            in_channels=input_dim,
+            out_channels=filters,
+            kernel_size=kernel_size,
+            padding=padding,
+            bias=True,
+        )
 
-    d_k = query.size(-1)
-    scores = torch.matmul(query, key.permute(0,1,3,2)) \
-             / math.sqrt(d_k)
-    # scores: (batch_size, h=8, seq_len, seq_len)
-    if mask is not None:
-        mask = mask.unsqueeze(1)
-        scores = scores.masked_fill(mask == 0, -1e9)
-    p_attn = F.softmax(scores, dim=-1)
-    if dropout is not None:
-        p_attn = dropout(p_attn)
-    return torch.matmul(p_attn, value), p_attn
-    # (batch_size, h=8, seq_len, d_k=16), (batch_size, h=8, seq_len, seq_len)
+    def forward(self, x):
+        """
+        Args:
+            @param x (Tensor): with shape of (batch_size, seq_len, input_dim=500/128) \n
+        return:
+            x_conv_out (torch.Tensor): with shape of (batch_size, seq_len, filters=128)
+        """
+        x_conv_out = self.conv(x.permute(0, 2, 1)).permute(0, 2, 1)
+
+        if self.residual_block:
+            return x_conv_out + x
+        else:
+            return x_conv_out
+
+
 
 class MultiHeadedAttention(nn.Module):
     """
     Reference:
         (http://nlp.seas.harvard.edu/2018/04/03/attention.html)
     """
-    def __init__(self, h, d_model, dropout=0.):
+    def __init__(self, h, d_model, dropout=0., residual_block=True):
         "Take in model size and number of heads."
         super(MultiHeadedAttention, self).__init__()
         assert d_model % h == 0
         # We assume d_v always equals d_k
+        self.residual_block = residual_block
+
         self.d_k = d_model // h
         self.h = h
         self.linears = nn.ModuleList(
             [nn.Linear(d_model, d_model) for i in range(4)]) # x / q k v 的维度 = head
         self.attn = None
         self.dropout = nn.Dropout(p=dropout)
+    
+    @staticmethod
+    def attention(query, key, value, mask=None, dropout=None):
+        """ Compute 'Scaled Dot Product Attention'
+
+        Reference:
+            (http://nlp.seas.harvard.edu/2018/04/03/attention.html)
+            (https://github.com/BangLiu/QANet-PyTorch/blob/master/model/QANet.py)
+        """
+        # q, k, v: (batch_size, h=8, seq_len, d_k=16)
+        # mask: (batch_size, seq_len)
+
+        d_k = query.size(-1)
+        scores = torch.matmul(query, key.permute(0,1,3,2)) \
+                / math.sqrt(d_k)
+        # scores: (batch_size, h=8, seq_len, seq_len)
+        if mask is not None:
+            mask = mask.unsqueeze(1)
+            scores = scores.masked_fill(mask == 0, -1e9)
+        p_attn = F.softmax(scores, dim=-1)
+        if dropout is not None:
+            p_attn = dropout(p_attn)
+        return torch.matmul(p_attn, value), p_attn
+        # (batch_size, h=8, seq_len, d_k=16), (batch_size, h=8, seq_len, seq_len)
 
     def forward(self, x, mask=None): # 08/11 将query, key, value 三个参数换为 q一个参数
         """
@@ -422,7 +356,7 @@ class MultiHeadedAttention(nn.Module):
         # q, k, v: (batch_size, h=8, seq_len, d_k=16)
 
         # 2) Apply attention on all the projected vectors in batch.
-        x, self.attn = attention(query,
+        x_out, self.attn = self.attention(query,
                                  key,
                                  value,
                                  mask=mask,
@@ -430,10 +364,13 @@ class MultiHeadedAttention(nn.Module):
         # (batch_size, h=8, seq_len, d_k=16), (batch_size, h=8, seq_len, seq_len)
 
         # 3) "Concat" using a view and apply a final linear.
-        x = x.transpose(1, 2).contiguous() \
-             .view(nbatches, -1, self.h * self.d_k)
-        return self.linears[-1](x)
-
+        x_out = x_out.transpose(1, 2).contiguous().view(nbatches, -1, self.h * self.d_k)
+        x_out = self.linears[-1](x_out)
+        
+        if self.residual_block:
+            return x_out + x
+        else:
+            return x_out
 
 class FFN(nn.Module):
     """ Position-wise Feed-Forward layer in the Encoder Block
@@ -444,45 +381,24 @@ class FFN(nn.Module):
     (https://arxiv.org/abs/1706.03762)
 
     """
-    def __init__(self, input_dim, output_dim, dropout=0.):
+    def __init__(self, input_dim, output_dim, dropout=0., residual_block = True):
         super(FFN, self).__init__()
         self.input_dim = input_dim
         self.w1 = nn.Linear(input_dim, output_dim, bias=True)
         self.w2 = nn.Linear(input_dim, output_dim, bias=True)
         self.dropout = nn.Dropout(dropout)
+        self.residual_block = residual_block
 
     def forward(self, x):
         assert x.size(2) == self.input_dim
-        x = F.relu(self.w1(x))
-        x = self.dropout(x)
-        x = self.w2(x)
-        return x
-
-
-# class PositionalEncoder(nn.Module):
-#     """ Positional Encoding
-
-#     Based on the paper:
-#     "Attention is all you need"
-#     by Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, et al.
-#     (https://arxiv.org/abs/1706.03762)
-
-#     Reference:
-#     (https://github.com/setoidz/QANet-pytorch/blob/master/models.py)
-
-#     """
-#     def __init__(self, seq_len, d_model=128):
-#         super(PositionalEncoder, self).__init__()
-#         freqs = torch.tensor(
-#             [10000 ** (-i / d_model) if i%2==0 else -10000 **((1-i)/d_model) for i in range(d_model)]
-#             ).unsqueeze(dim=1)
-#         pos = torch.arange(seq_len).repeat(d_model, 1)
-#         self.pos_encoding = nn.Parameter(torch.sin(torch.mul(pos, freqs)), requires_grad=False)
-
-#     def forward(self, x):
-#         # x: (batch_size, seq_len, dim_model)
-#         x = x + self.pos_encoding
-#         return x
+        x_out = F.relu(self.w1(x))
+        x_out = self.dropout(x_out)
+        x_out = self.w2(x_out)
+        
+        if self.residual_block:
+            return x_out + x
+        else:
+            return x_out
 
 
 # 3. C2Q Attention Layer
@@ -581,16 +497,19 @@ class ModelEncoderBlock(nn.Module):
         self.cnn = CNN(input_dim=4 * d_model,
                        kernel_size=kernel_size,
                        padding=padding,
-                       filters=4 * d_model)
+                       filters=4 * d_model,
+                       residual_block=True)
 
         self.layernorm = LayerNorm(4 * d_model)
 
         self.att = MultiHeadedAttention(h=head_num,
                                         d_model=4 * d_model,
-                                        dropout=drop_prob)
+                                        dropout=drop_prob,
+                                        residual_block=True)
         self.ffn = FFN(input_dim=4 * d_model,
                        output_dim=4 * d_model,
-                       dropout=drop_prob)
+                       dropout=drop_prob,
+                       residual_block=True)
 
     def forward(self, x, mask):
         # x: (batch_size, seq_len, word_dim+char_dim)
@@ -598,13 +517,10 @@ class ModelEncoderBlock(nn.Module):
         x = self.posenc(x)
 
         for i in range(self.num_conv):
-            x_prev = x
-            x = x_prev + self.cnn(self.layernorm(x))
+            x = self.cnn(self.layernorm(x))
 
-        x_prev = x
-        x = x_prev + self.att(self.layernorm(x), mask)
-        x_prev = x
-        x = x_prev + self.ffn(self.layernorm(x))
+        x = self.att(self.layernorm(x), mask)
+        x = self.ffn(self.layernorm(x))
 
         return x
 
