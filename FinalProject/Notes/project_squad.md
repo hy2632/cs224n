@@ -62,17 +62,15 @@ SQuAD leaderboard: <https://rajpurkar.github.io/SQuAD-explorer/>
 
 # **8/10 QANet**
 
-1. Core contribution:
-
-   1. **Conv & self attention**: local structure & global interaction
-   2. Speed up: 5x
-   3. data augmentation technique: EN -> FR -> EN, enriched the training data by paraphrasing.
-
-2. High level structure:
+1. High level structure:
    1. Embedding
       1. xw: 不变，GloVe 的 wordemb
       2. xc：trainable, 每个字母都是 p2=200, 每个单词限定到 16 个字母，最终从 16 个字母中取最大，得到一个 200 维的向量 xc
+      3. **08/10** Char_emb 不使用CNN， 而是每个单词直接取max
    2. Embedding Encoder
    3. Context query attention layer
    4. Model encoder layer
    5. Output layer
+
+2. 相关代码实现
+   1. (http://nlp.seas.harvard.edu/2018/04/03/attention.html)
