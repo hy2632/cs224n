@@ -187,17 +187,15 @@ class EmbeddingEncoderBlock(nn.Module):
         # x: (batch_size, seq_len, word_dim+char_dim)
         # For an input x and a given operation f, the output is f(layernorm(x)) +x,
         x = self.posenc(x)
-        # print(f"posenc x: {tuple(x.size())}" )
         x = self.cnn_init(x)
-        # print(f"cnn_init x: {tuple(x.size())}" )
 
         for i in range(self.num_conv):
-            x += self.cnn(self.layernorm(x))
-            # print(f"cnn {i}: {tuple(x.size())}" )
-
-        # print(f"mask : {tuple(mask.size())}" )
-        x += self.att(self.layernorm(x), mask)
-        x += self.ffn(self.layernorm(x))
+            x_prev = x
+            x = x_prev + self.cnn(self.layernorm(x))
+        x_prev = x
+        x = x_prev + self.att(self.layernorm(x), mask)
+        x_prev = x
+        x = x_prev + self.ffn(self.layernorm(x))
 
         return x
 
@@ -207,16 +205,19 @@ class PositionalEncoding(nn.Module):
     Reference:
         (http://nlp.seas.harvard.edu/2018/04/03/attention.html)
     """
-    def __init__(self, input_dim, dropout, max_len=5000):
+    def __init__(self, input_dim, dropout, max_len=400):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
 
         # Compute the positional encodings once in log space.
         pe = torch.zeros(max_len, input_dim)
-        position = torch.arange(0, max_len).unsqueeze(1)
+        # https://stackoverflow.com/questions/52922445/runtimeerror-exp-not-implemented-for-torch-longtensor?rq=1 
+        # "exp" not implemented for 'torch.LongTensor'
+        position = torch.arange(0., max_len).unsqueeze(1) # 0 to 0. (max_len, 1)
         div_term = torch.exp(
-            torch.arange(0, input_dim, 2) *
+            torch.arange(0., input_dim, 2) * # 0 to 0.
             -(math.log(10000.0) / input_dim))
+
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(0)
@@ -226,6 +227,46 @@ class PositionalEncoding(nn.Module):
         x = x + torch.autograd.Variable(self.pe[:, :x.size(1)],
                                         requires_grad=False)
         return self.dropout(x)
+
+
+# class PositionalEncoding(nn.Module):
+#     """
+#     Add position information to input tensor.
+#     :Examples:
+#         >>> m = PositionalEncoding(d_model=6, max_len=10, dropout=0)
+#         >>> input = torch.randn(3, 10, 6)
+#         >>> output = m(input)
+    
+#     Reference:
+#         (https://github.com/BangLiu/QANet-PyTorch/blob/master/model/modules/position.py)
+#     """
+
+#     def __init__(self, input_dim, dropout=0, max_len=5000):
+#         """
+#         :param input_dim
+#         :param dropout: dropout rate
+#         :param max_len: maximum sequence length
+#         """
+#         super(PositionalEncoding, self).__init__()
+#         self.dropout = nn.Dropout(p=dropout)
+
+#         # Compute the positional encodings once in log space.
+#         pe = torch.zeros(max_len, input_dim)
+#         position = torch.arange(0., max_len).unsqueeze(1)
+#         div_term = torch.exp(torch.arange(0., input_dim, 2) *
+#                              -(math.log(10000.0) / input_dim))
+#         pe[:, 0::2] = torch.sin(position * div_term)
+#         pe[:, 1::2] = torch.cos(position * div_term)
+#         pe = pe.unsqueeze(0)
+#         self.register_buffer('pe', pe)
+
+#     def forward(self, x):
+#         """
+#         :Input: (batch_num, seq_length, hidden_size)
+#         :Output: (batch_num, seq_length, hidden_size)
+#         """
+#         x = x + torch.autograd.Variable(self.pe[:, :x.size(1)], requires_grad=False)
+#         return self.dropout(x)
 
 
 # Convolution-layer:
@@ -338,7 +379,7 @@ def attention(query, key, value, mask=None, dropout=None):
              / math.sqrt(d_k)
     # scores: (batch_size, h=8, seq_len, seq_len)
     if mask is not None:
-        mask = mask.unsqueeze(1).unsqueeze(1)
+        mask = mask.unsqueeze(1)
         scores = scores.masked_fill(mask == 0, -1e9)
     p_attn = F.softmax(scores, dim=-1)
     if dropout is not None:
@@ -529,7 +570,7 @@ class ModelEncoderBlock(nn.Module):
                  padding=2,
                  num_conv=2,
                  head_num=8,
-                 maximum_context_length=400):
+                 maximum_context_length=1000):
         super().__init__()
         self.num_conv = num_conv
 
@@ -540,7 +581,7 @@ class ModelEncoderBlock(nn.Module):
         self.cnn = CNN(input_dim=4 * d_model,
                        kernel_size=kernel_size,
                        padding=padding,
-                       filters=d_model)
+                       filters=4 * d_model)
 
         self.layernorm = LayerNorm(4 * d_model)
 
@@ -557,10 +598,13 @@ class ModelEncoderBlock(nn.Module):
         x = self.posenc(x)
 
         for i in range(self.num_conv):
-            x += self.cnn(self.layernorm(x))
+            x_prev = x
+            x = x_prev + self.cnn(self.layernorm(x))
 
-        x += self.att(self.layernorm(x), mask)
-        x += self.ffn(self.layernorm(x))
+        x_prev = x
+        x = x_prev + self.att(self.layernorm(x), mask)
+        x_prev = x
+        x = x_prev + self.ffn(self.layernorm(x))
 
         return x
 

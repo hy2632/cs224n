@@ -63,7 +63,7 @@ def main(args):
         num_conv_per_embencblock=4,
         num_conv_per_modencblock=2,
         head_num=8,
-        maximum_context_length=400,
+        maximum_context_length=1000,
     )
     # ==============================================================================
 
@@ -188,11 +188,13 @@ def evaluate(model, data_loader, device, eval_file, max_len, use_squad_v2):
         for cw_idxs, cc_idxs, qw_idxs, qc_idxs, y1, y2, ids in data_loader:
             # Setup for forward
             cw_idxs = cw_idxs.to(device)
+            cc_idxs = cc_idxs.to(device)
             qw_idxs = qw_idxs.to(device)
+            qc_idxs = qc_idxs.to(device)
             batch_size = cw_idxs.size(0)
 
             # Forward
-            log_p1, log_p2 = model(cw_idxs, qw_idxs)
+            log_p1, log_p2 = model(cw_idxs, cc_idxs, qw_idxs, qc_idxs)
             y1, y2 = y1.to(device), y2.to(device)
             loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
             nll_meter.update(loss.item(), batch_size)

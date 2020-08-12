@@ -74,3 +74,14 @@ SQuAD leaderboard: <https://rajpurkar.github.io/SQuAD-explorer/>
 
 2. 相关代码实现
    1. (http://nlp.seas.harvard.edu/2018/04/03/attention.html)
+
+
+
+# **8/11 QANet**
+
+怎么说，调了一整天的bug 总算是能开始训练了，对不对还要另说。
+lr = 0.001, l2_wd = 3e-7
+
+
+几个疑问点：
+1. word_emb + char_emb 后每个词是500维，

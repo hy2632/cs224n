@@ -191,7 +191,7 @@ class QANet(nn.Module):
                 num_conv_per_embencblock = 4,
                 num_conv_per_modencblock = 2,
                 head_num=8,
-                maximum_context_length=400):
+                maximum_context_length=1000):
         super(QANet, self).__init__()
         word_dim = word_vectors.size(1)
 
@@ -199,7 +199,7 @@ class QANet(nn.Module):
         self.char_emb = Char_Embedding(char_vocab_size, char_dim, drop_prob)
         self.hwy = HighwayEncoder(num_layers=2, word_dim=word_vectors.size(1), char_dim=char_dim)
 
-        self.emb_enc_block_context = EmbeddingEncoderBlock(
+        self.emb_enc_block = EmbeddingEncoderBlock(
                 word_dim=word_dim,
                 char_dim=char_dim,
                 d_model=d_model,
@@ -210,17 +210,6 @@ class QANet(nn.Module):
                 head_num=head_num,
                 maximum_context_length=maximum_context_length)
         
-        self.emb_enc_block_question = EmbeddingEncoderBlock(
-                word_dim=word_dim,
-                char_dim=char_dim,
-                d_model=d_model,
-                drop_prob=drop_prob,
-                kernel_size=7,
-                padding=3,
-                num_conv=num_conv_per_embencblock,
-                head_num=head_num,
-                maximum_context_length=maximum_context_length)
-
         self.c2q_att = CQAttention(hidden_size=d_model, drop_prob=drop_prob)
 
         self.mod_enc_block = ModelEncoderBlock(
@@ -249,13 +238,13 @@ class QANet(nn.Module):
         c_emb = self.hwy(cw_emb, cc_emb)  # (batch_size, c_len, )
         q_emb = self.hwy(qw_emb, qc_emb)  # (batch_size, q_len, word_dim+char_dim)
 
-        c_enc = self.emb_enc_block_context(c_emb, c_mask)
-        q_enc = self.emb_enc_block_question(q_emb, q_mask)
+        c_enc = self.emb_enc_block(c_emb, c_mask)
+        q_enc = self.emb_enc_block(q_emb, q_mask)
         c2q_att = self.c2q_att(c_enc, q_enc, c_mask, q_mask)
 
-        m0 = self.mod_enc_block(c2q_att)
-        m1 = self.mod_enc_block(m0)
-        m2 = self.mod_enc_block(m1)
+        m0 = self.mod_enc_block(c2q_att, c_mask)
+        m1 = self.mod_enc_block(m0, c_mask)
+        m2 = self.mod_enc_block(m1, c_mask)
 
         out = self.out(m0, m1, m2, c_mask) # logp1, logp2
 
