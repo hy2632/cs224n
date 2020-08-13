@@ -51,29 +51,29 @@ class Word_Embedding(nn.Module):
         return x
 
 
-class CNN_for_Char_Embedding(nn.Module):
-    def __init__(self, f: int, e_char: int = 50, k: int = 5, padding: int = 1,):
-        super().__init__()
-        self.f = f
-        self.conv1d = nn.Conv1d(
-            in_channels=e_char,
-            out_channels=f,
-            kernel_size=k,
-            padding=padding,
-            bias=True,
-        )
-    def forward(
-        self,
-        x_reshaped: torch.Tensor,
-    ) -> torch.Tensor:
-        """ Map from x_reshaped to x_conv_out\n
-            @param x_reshaped (Tensor): Tensor with shape of (batch_size, sentence_length, m_word, e_char) \n
-            @return x_conv_out (Tensor) : Tensor with shape of (batch_size, sentence_length, e_word=f) \n
-        """
-        (batch_size, sentence_length, m_word, e_char) = tuple(x_reshaped.size())
-        x_conv = self.conv1d(x_reshaped.contiguous().view(sentence_length*batch_size, e_char, m_word))
-        x_conv_out = torch.max(F.relu(x_conv), dim=2)[0].contiguous().view(batch_size, sentence_length, self.f)
-        return x_conv_out
+# class CNN_for_Char_Embedding(nn.Module):
+#     def __init__(self, f: int, e_char: int = 50, k: int = 5, padding: int = 1,):
+#         super().__init__()
+#         self.f = f
+#         self.conv1d = nn.Conv1d(
+#             in_channels=e_char,
+#             out_channels=f,
+#             kernel_size=k,
+#             padding=padding,
+#             bias=True,
+#         )
+#     def forward(
+#         self,
+#         x_reshaped: torch.Tensor,
+#     ) -> torch.Tensor:
+#         """ Map from x_reshaped to x_conv_out\n
+#             @param x_reshaped (Tensor): Tensor with shape of (batch_size, sentence_length, m_word, e_char) \n
+#             @return x_conv_out (Tensor) : Tensor with shape of (batch_size, sentence_length, e_word=f) \n
+#         """
+#         (batch_size, sentence_length, m_word, e_char) = tuple(x_reshaped.size())
+#         x_conv = self.conv1d(x_reshaped.contiguous().view(sentence_length*batch_size, e_char, m_word))
+#         x_conv_out = torch.max(F.relu(x_conv), dim=2)[0].contiguous().view(batch_size, sentence_length, self.f)
+#         return x_conv_out
 
 class Char_Embedding(nn.Module):
     """Character-level Embedding layer used by BiDAF
@@ -151,8 +151,7 @@ class HighwayEncoder(nn.Module):
         return: 
             x: (batch_size, seq_len, word_dim+char_dim)
         """
-        x = torch.cat([x1, x2],
-                      dim=-1)  # x (batch_size, seq_len, word_dim+char_dim)
+        x = torch.cat([x1, x2], dim=-1)  # x (batch_size, seq_len, word_dim+char_dim)
 
         for gate, transform in zip(self.gates, self.transforms):
             # Shapes of g, t, and x are all (batch_size, seq_len, word_dim+char_dim)
@@ -202,7 +201,7 @@ class EmbeddingEncoderBlock(nn.Module):
                        filters=d_model,
                        residual_block=True)
 
-        self.layernorm = LayerNorm(d_model)
+        self.cnns = nn.ModuleList([self.cnn for _ in range(num_conv)])
 
         self.att = MultiHeadedAttention(h=head_num,
                                         d_model=d_model,
@@ -220,9 +219,9 @@ class EmbeddingEncoderBlock(nn.Module):
         x = self.cnn_init(x)
         x = self.posenc(x)
         for i in range(self.num_conv):
-            x = self.cnn(self.layernorm(x))
-        x = self.att(self.layernorm(x), mask)
-        x = self.ffn(self.layernorm(x))
+            x = self.cnns[i](x)
+        x = self.att(x, mask)
+        x = self.ffn(x)
         return x
 
 
@@ -231,27 +230,26 @@ class PositionalEncoding(nn.Module):
     Reference:
         (http://nlp.seas.harvard.edu/2018/04/03/attention.html)
     """
-    def __init__(self, input_dim, dropout, max_len=400):
+    def __init__(self, input_dim, dropout, max_len):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
 
-        # Compute the positional encodings once in log space.
         pe = torch.zeros(max_len, input_dim)
         # https://stackoverflow.com/questions/52922445/runtimeerror-exp-not-implemented-for-torch-longtensor?rq=1 
         # "exp" not implemented for 'torch.LongTensor'
         position = torch.arange(0., max_len).unsqueeze(1) # 0 to 0. (max_len, 1)
-        div_term = torch.exp(
-            torch.arange(0., input_dim, 2) * # 0 to 0.
-            -(math.log(10000.0) / input_dim))
+        # 10000^(-2i/d_model)
+        div_term = torch.exp(torch.arange(0., input_dim, 2) * -(math.log(10000.0) / input_dim))
 
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0)
+        pe = pe.unsqueeze(0) #(1, seq_len, d_model)
         self.register_buffer('pe', pe)
 
     def forward(self, x):
-        x = x + torch.autograd.Variable(self.pe[:, :x.size(1)],
-                                        requires_grad=False)
+        # x: (batch_size, seq_len, d_model)
+        # pe: (1, max_seq_len, d_model)
+        x = x + torch.autograd.Variable(self.pe[:, :x.size(1), :],requires_grad=False)
         return self.dropout(x)
 
 class LayerNorm(nn.Module):
@@ -289,10 +287,11 @@ class CNN(nn.Module):
         kernel_size: int = 7,
         padding: int = 3,
         filters: int = 128,
-        residual_block: bool = True
+        residual_block: bool = True,
     ):
         super(CNN, self).__init__()
         self.residual_block = residual_block
+        self.layer_norm
         self.conv = nn.Conv1d(
             in_channels=input_dim,
             out_channels=filters,
@@ -300,6 +299,7 @@ class CNN(nn.Module):
             padding=padding,
             bias=True,
         )
+        self.layernorm = LayerNorm(input_dim)
 
     def forward(self, x):
         """
@@ -308,13 +308,12 @@ class CNN(nn.Module):
         return:
             x_conv_out (torch.Tensor): with shape of (batch_size, seq_len, filters=128)
         """
-        x_conv_out = self.conv(x.permute(0, 2, 1)).permute(0, 2, 1)
-
-        if self.residual_block:
+        if self.residual_block: 
+            x_conv_out = self.conv(self.layernorm(x).permute(0, 2, 1)).permute(0, 2, 1)
             return x_conv_out + x
-        else:
+        else:   # embedding_encoder的第一个CNN既不residual_block又不layernorm
+            x_conv_out = self.conv(x.permute(0, 2, 1)).permute(0, 2, 1)
             return x_conv_out
-
 
 
 class MultiHeadedAttention(nn.Module):
@@ -334,6 +333,9 @@ class MultiHeadedAttention(nn.Module):
         self.linears = nn.ModuleList(
             [nn.Linear(d_model, d_model) for i in range(4)]) # x / q k v 的维度 = head
         self.attn = None
+
+        self.layernorm = LayerNorm(d_model)
+
         self.dropout = nn.Dropout(p=dropout)
     
     @staticmethod
@@ -371,10 +373,13 @@ class MultiHeadedAttention(nn.Module):
             mask = mask.unsqueeze(1) # (batch_size, 1, seq_len)
         nbatches = x.size(0)
 
+        # layernorm
+        x_layernormed = self.layernorm(x)
+
         # 1) Do all the linear projections in batch from d_model => h x d_k
         query, key, value = \
             [l(i).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
-             for l, i in zip(self.linears, (x, x, x))] # 8/11 注意这里三者相同
+             for l, i in zip(self.linears, (x_layernormed, x_layernormed, x_layernormed))] # 8/11 注意这里三者相同
         # q, k, v: (batch_size, h=8, seq_len, d_k=16)
 
         # 2) Apply attention on all the projected vectors in batch.
@@ -408,12 +413,12 @@ class FFN(nn.Module):
         self.input_dim = input_dim
         self.w1 = nn.Linear(input_dim, output_dim, bias=True)
         self.w2 = nn.Linear(input_dim, output_dim, bias=True)
+        self.layernorm = LayerNorm(input_dim)
         self.dropout = nn.Dropout(dropout)
         self.residual_block = residual_block
 
     def forward(self, x):
-        assert x.size(2) == self.input_dim
-        x_out = F.relu(self.w1(x))
+        x_out = F.relu(self.w1(self.layernorm(x)))
         x_out = self.dropout(x_out)
         x_out = self.w2(x_out)
         
@@ -511,7 +516,6 @@ class ModelEncoderBlock(nn.Module):
                  maximum_context_length=1000):
         super().__init__()
         self.num_conv = num_conv
-        self.block_layers = block_layers
 
         self.posenc = PositionalEncoding(input_dim=4 * d_model,
                                          dropout=drop_prob,
@@ -523,8 +527,6 @@ class ModelEncoderBlock(nn.Module):
                        filters=4 * d_model,
                        residual_block=True)
 
-        self.layernorm = LayerNorm(4 * d_model)
-
         self.att = MultiHeadedAttention(h=head_num,
                                         d_model=4 * d_model,
                                         dropout=drop_prob,
@@ -534,15 +536,15 @@ class ModelEncoderBlock(nn.Module):
                        dropout=drop_prob,
                        residual_block=True)
 
-    def forward(self, x, mask):
+    def forward(self, x, mask=None):
         # x: (batch_size, seq_len, word_dim+char_dim)
         # For an input x and a given operation f, the output is f(layernorm(x)) +x,
         x = self.posenc(x)
         for i in range(self.num_conv):
-            x = self.cnn(self.layernorm(x))
+            x = self.cnn(x)
 
-        x = self.att(self.layernorm(x), mask)
-        x = self.ffn(self.layernorm(x))
+        x = self.att(x, mask)
+        x = self.ffn(x)
         return x
 
 

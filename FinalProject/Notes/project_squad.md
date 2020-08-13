@@ -81,8 +81,9 @@ SQuAD leaderboard: <https://rajpurkar.github.io/SQuAD-explorer/>
 
 怎么说，调了一整天的bug 总算是能开始训练了，对不对还要另说。
 lr = 0.001, l2_wd = 3e-7
-
+tmux 滚轮： ctrl+b + [ / q 
 
 几个疑问点：
 1. char_emb 里还是得用CNN
-2. word_emb + char_emb 后每个词是500维，一开始变为d_model=128需要
+2. word_emb + char_emb 后每个词是500维，一开始变为d_model=128需要在position_encoding前先cnn降维。
+3. 
