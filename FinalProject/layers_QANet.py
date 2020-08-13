@@ -182,6 +182,7 @@ class EmbeddingEncoderBlock(nn.Module):
         super().__init__()
 
         self.num_conv = num_conv
+        self.maximum_context_length = maximum_context_length
 
         # init只在最开始将 p1+p2=500 转换到 d_model=128 时使用
         # 在posenc前，不用residual_block
@@ -215,7 +216,8 @@ class EmbeddingEncoderBlock(nn.Module):
     def forward(self, x, mask):
         # x: (batch_size, seq_len, word_dim+char_dim)
         # For an input x and a given operation f, the output is f(layernorm(x)) +x,
-        
+        if x.size(1) > self.maximum_context_length:
+            raise ValueError("seq_len > maximum_context_length")
         x = self.cnn_init(x)
         x = self.posenc(x)
         for i in range(self.num_conv):
@@ -291,7 +293,6 @@ class CNN(nn.Module):
     ):
         super(CNN, self).__init__()
         self.residual_block = residual_block
-        self.layer_norm
         self.conv = nn.Conv1d(
             in_channels=input_dim,
             out_channels=filters,
@@ -315,6 +316,28 @@ class CNN(nn.Module):
             x_conv_out = self.conv(x.permute(0, 2, 1)).permute(0, 2, 1)
             return x_conv_out
 
+def attention(query, key, value, mask=None, dropout=None):
+    """ Compute 'Scaled Dot Product Attention'
+
+    Reference:
+        (http://nlp.seas.harvard.edu/2018/04/03/attention.html)
+        (https://github.com/BangLiu/QANet-PyTorch/blob/master/model/QANet.py)
+    """
+    # q, k, v: (batch_size, h=8, seq_len, d_k=16)
+    # mask: (batch_size, seq_len)
+
+    d_k = query.size(-1)
+    scores = torch.matmul(query, key.permute(0,1,3,2)) \
+            / math.sqrt(d_k)
+    # scores: (batch_size, h=8, seq_len, seq_len)
+    if mask is not None:
+        mask = mask.unsqueeze(1)
+        scores = scores.masked_fill(mask == 0, -1e9)
+    p_attn = F.softmax(scores, dim=-1)
+    if dropout is not None:
+        p_attn = dropout(p_attn)
+    return torch.matmul(p_attn, value), p_attn
+    # (batch_size, h=8, seq_len, d_k=16), (batch_size, h=8, seq_len, seq_len)
 
 class MultiHeadedAttention(nn.Module):
     """
@@ -337,30 +360,6 @@ class MultiHeadedAttention(nn.Module):
         self.layernorm = LayerNorm(d_model)
 
         self.dropout = nn.Dropout(p=dropout)
-    
-    @staticmethod
-    def attention(query, key, value, mask=None, dropout=None):
-        """ Compute 'Scaled Dot Product Attention'
-
-        Reference:
-            (http://nlp.seas.harvard.edu/2018/04/03/attention.html)
-            (https://github.com/BangLiu/QANet-PyTorch/blob/master/model/QANet.py)
-        """
-        # q, k, v: (batch_size, h=8, seq_len, d_k=16)
-        # mask: (batch_size, seq_len)
-
-        d_k = query.size(-1)
-        scores = torch.matmul(query, key.permute(0,1,3,2)) \
-                / math.sqrt(d_k)
-        # scores: (batch_size, h=8, seq_len, seq_len)
-        if mask is not None:
-            mask = mask.unsqueeze(1)
-            scores = scores.masked_fill(mask == 0, -1e9)
-        p_attn = F.softmax(scores, dim=-1)
-        if dropout is not None:
-            p_attn = dropout(p_attn)
-        return torch.matmul(p_attn, value), p_attn
-        # (batch_size, h=8, seq_len, d_k=16), (batch_size, h=8, seq_len, seq_len)
 
     def forward(self, x, mask=None): # 08/11 将query, key, value 三个参数换为 q一个参数
         """
@@ -383,7 +382,7 @@ class MultiHeadedAttention(nn.Module):
         # q, k, v: (batch_size, h=8, seq_len, d_k=16)
 
         # 2) Apply attention on all the projected vectors in batch.
-        x_out, self.attn = self.attention(query,
+        x_out, self.attn = attention(query,
                                  key,
                                  value,
                                  mask=mask,
@@ -418,7 +417,7 @@ class FFN(nn.Module):
         self.residual_block = residual_block
 
     def forward(self, x):
-        x_out = F.relu(self.w1(self.layernorm(x)))
+        x_out = F.relu(self.w1(self.layernorm(x)), inplace=True) # inplace = True
         x_out = self.dropout(x_out)
         x_out = self.w2(x_out)
         

@@ -22,7 +22,7 @@ class QANet(nn.Module):
                 num_conv_per_embencblock = 4,
                 num_conv_per_modencblock = 2,
                 head_num=8,
-                maximum_context_length=500):
+                maximum_context_length=400):
         super(QANet, self).__init__()
         word_dim = word_vectors.size(1)
 
@@ -73,13 +73,13 @@ class QANet(nn.Module):
 
 
         m0 = c2q_att
-        for _ in range(7):
+        for _ in range(5):
                 m0 = self.mod_enc_block(m0) ## 取消添加 mask
         m1 = m0
-        for _ in range(7):
+        for _ in range(5):
                 m1 = self.mod_enc_block(m1)
         m2 = m1
-        for _ in range(7):
+        for _ in range(5):
                 m2 = self.mod_enc_block(m2)
 
         out = self.out(m0, m1, m2, c_mask) # logp1, logp2

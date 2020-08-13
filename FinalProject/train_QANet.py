@@ -65,7 +65,7 @@ def main(args):
         num_conv_per_embencblock=4,
         num_conv_per_modencblock=2,
         head_num=8,
-        maximum_context_length=500,
+        maximum_context_length=400,
     )
     # ==============================================================================
 
@@ -89,8 +89,7 @@ def main(args):
     # Get optimizer and scheduler
     optimizer = optim.Adam(model.parameters(),
                                args.lr,
-                               (0.8, 0.999),
-                               eps = 1e-7,
+                               eps = 1e-6,
                                weight_decay=args.l2_wd)
     scheduler = sched.LambdaLR(optimizer, lambda s: 1.)  # Constant LR
 
@@ -128,7 +127,12 @@ def main(args):
                 optimizer.zero_grad()
 
                 # Forward
-                log_p1, log_p2 = model(cw_idxs, cc_idxs, qw_idxs, qc_idxs) # 08/09 增加cc_idxs 和 qc_idxs
+                # 8/12 当seq_len > max_context_length = 400 时raise ValueError 并跳过
+                try:
+                    log_p1, log_p2 = model(cw_idxs, cc_idxs, qw_idxs, qc_idxs) # 08/09 增加cc_idxs 和 qc_idxs
+                except ValueError:
+                    continue
+
                 y1, y2 = y1.to(device), y2.to(device)
                 loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
                 loss_val = loss.item()
