@@ -94,4 +94,5 @@ tmux 滚轮： ctrl+b + [ / q
 遇到了Cuda out of memory问题
 解决方法：
 1. batch_size 从64 改为 28
-2. PosEnc的maximum_context_length 需要设置为400， 多于400的需要discard，如何实现？
+2. PosEnc的maximum_context_length 需要设置为400， 多于400的需要discard，如何实现？raise ValueError + Except
+3. 
