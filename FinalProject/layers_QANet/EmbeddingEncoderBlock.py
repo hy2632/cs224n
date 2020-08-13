@@ -28,13 +28,13 @@ class EmbeddingEncoderBlock(nn.Module):
                        output_dim=d_model,
                        drop_prob=0.1)
 
-    def forward(self, x, mask):
+    def forward(self, x):
         # x: (batch_size, seq_len, word_dim+char_dim)
         x_out = self.cnn_init(x.permute(0,2,1)).permute(0,2,1)
         if x_out.size(1) > self.maximum_context_length:
             raise ValueError("seq_len > maximum_context_length")
         x_out = self.posenc(x_out)
         x_out = self.cnn(x_out)
-        x_out = self.att(x_out, mask)
+        x_out = self.att(x_out)
         x_out = self.ffn(x_out)
         return x_out

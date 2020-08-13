@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from layers_QANet.LayerNorm import LayerNorm
+# from layers_QANet.LayerNorm import LayerNorm
 
 class depthwise_separable_convolution(nn.Module):
     """
@@ -17,7 +17,7 @@ class depthwise_separable_convolution(nn.Module):
         # https://arxiv.org/pdf/1706.03059.pdf
 
         self.num_convs = num_convs
-        self.layernorm = LayerNorm(input_dim)
+        # self.layernorm = LayerNorm(input_dim)
         self.dropout = nn.Dropout(drop_prob)
         self.dsconv = nn.Conv1d(in_channels=input_dim,
                               out_channels=input_dim,
@@ -31,7 +31,8 @@ class depthwise_separable_convolution(nn.Module):
         x = self.dropout(x)
         x_out = x
         for i in range(self.num_convs):
-            x_out = self.layernorm(x_out)
+            # x_out = self.layernorm(x_out)
+            x_out = F.layer_norm(x_out, [x_out.size(-1)])
             x_out = self.dsconv(x_out.permute(0,2,1)).permute(0,2,1)
         return x_out + x
         

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from layers_QANet.LayerNorm import LayerNorm
+# from layers_QANet.LayerNorm import LayerNorm
 
 class FFN(nn.Module):
     """ Position-wise Feed-Forward layer in the Encoder Block
@@ -18,13 +18,14 @@ class FFN(nn.Module):
         self.input_dim = input_dim
         self.w1 = nn.Linear(input_dim, output_dim, bias=True)
         self.w2 = nn.Linear(input_dim, output_dim, bias=True)
-        self.layernorm = LayerNorm(input_dim)
+        # self.layernorm = LayerNorm(input_dim)
         self.dropout = nn.Dropout(drop_prob)
 
     def forward(self, x):
         x = self.dropout(x)
-        x_out = self.layernorm(x)
-        x_out = F.relu(self.w1(x_out),x_out)
+        # x_out = self.layernorm(x)
+        x_out = F.layer_norm(x, [x.size(-1)])
+        x_out = F.relu(self.w1(x_out))
         x_out = self.w2(x_out)
         
         return x_out + x

@@ -1,5 +1,6 @@
 """Command-line arguments for setup.py, train.py, test.py.
-    in QANet
+Author:
+    Chris Chute (chute@stanford.edu)
 """
 
 import argparse
@@ -56,7 +57,7 @@ def get_setup_args():
                         help='Max number of words in a question at test time')
     parser.add_argument('--char_dim',
                         type=int,
-                        default=64,
+                        default=100,
                         help='Size of char vectors (char-level embeddings)')
     parser.add_argument('--glove_dim',
                         type=int,
@@ -93,24 +94,24 @@ def get_train_args():
 
     parser.add_argument('--eval_steps',
                         type=int,
-                        default=50000,
+                        default=100000,
                         help='Number of steps between successive evaluations.')
     parser.add_argument('--lr',
                         type=float,
-                        default=0.001, #改
-                        help='Learning rate.')
+                        default=0.001,
+                        help='Base learning rate.')
+    parser.add_argument('--num_warmup_steps',
+                        type=int,
+                        default=1000,
+                        help='Number of warming up steps.')
     parser.add_argument('--l2_wd',
                         type=float,
-                        default=3e-7, #改
+                        default=3e-7,
                         help='L2 weight decay.')
     parser.add_argument('--num_epochs',
                         type=int,
                         default=30,
                         help='Number of epochs for which to train. Negative means forever.')
-    parser.add_argument('--drop_prob',
-                        type=float,
-                        default=0.2,
-                        help='Probability of zeroing an activation in dropout layers.')
     parser.add_argument('--metric_name',
                         type=str,
                         default='F1',
@@ -132,19 +133,6 @@ def get_train_args():
                         type=float,
                         default=0.999,
                         help='Decay rate for exponential moving average of parameters.')
-
-
-    # train_QANet
-    # ===================================================================================
-    parser.add_argument('--char_dim',
-                    type=int,
-                    default=200,
-                    help='Size of char vectors (char-level embeddings)')
-    parser.add_argument('--d_model',
-                    type=int,
-                    default=128,
-                    help='Size of char vectors (char-level embeddings)')
-    # ===================================================================================
 
     args = parser.parse_args()
 
@@ -177,15 +165,6 @@ def get_test_args():
                         default='submission.csv',
                         help='Name for submission file.')
 
-
-    # 08/09 add char_dim in training.
-    parser.add_argument('--char_dim',
-                    type=int,
-                    default=200, # 08/09 change char_dim to 200.
-                    help='Size of char vectors (char-level embeddings)')
-
-
-
     # Require load_path for test.py
     args = parser.parse_args()
     if not args.load_path:
@@ -208,11 +187,9 @@ def add_common_args(parser):
     parser.add_argument('--word_emb_file',
                         type=str,
                         default='./data/word_emb.json')
-
     parser.add_argument('--char_emb_file',
                         type=str,
                         default='./data/char_emb.json')
-    
     parser.add_argument('--train_eval_file',
                         type=str,
                         default='./data/train_eval.json')
@@ -245,7 +222,7 @@ def add_train_test_args(parser):
                         help='Base directory for saving information.')
     parser.add_argument('--batch_size',
                         type=int,
-                        default=28, # 08/12 CUDA out of memory 问题
+                        default=32,
                         help='Batch size per GPU. Scales automatically when \
                               multiple GPUs are available.')
     parser.add_argument('--use_squad_v2',
@@ -254,8 +231,16 @@ def add_train_test_args(parser):
                         help='Whether to use SQuAD 2.0 (unanswerable) questions.')
     parser.add_argument('--hidden_size',
                         type=int,
-                        default=100,
+                        default=128,
                         help='Number of features in encoder hidden layers.')
+    parser.add_argument('--char_embed_size',
+                        type=int,
+                        default=100,
+                        help='Dimension of character embeddings.')
+    parser.add_argument('--word_from_char_size',
+                        type=int,
+                        default=100,
+                        help='Dimension of the part of word vectors obtained from convolving character vectors.')
     parser.add_argument('--num_visuals',
                         type=int,
                         default=10,
@@ -264,3 +249,39 @@ def add_train_test_args(parser):
                         type=str,
                         default=None,
                         help='Path to load as a model checkpoint.')
+    parser.add_argument('--dropout_main',
+                        type=float,
+                        default=0.1,
+                        help='Dropout rate between every two main layers.')
+    parser.add_argument('--embed_encoder_num_convs',
+                        type=int,
+                        default=4,
+                        help='Number of convolution sublayers in each embedding encoder layer.')
+    parser.add_argument('--embed_encoder_conv_kernel_size',
+                        type=int,
+                        default=7,
+                        help='Kernel size of each convolution sublayer in each embedding encoder layer.')
+    parser.add_argument('--embed_encoder_num_heads',
+                        type=int,
+                        default=4,
+                        help='Number of attention heads in each encoder block in the embedding encoder layer.')                        
+    parser.add_argument('--embed_encoder_num_blocks',
+                        type=int,
+                        default=1,
+                        help='Number of encoder blocks in each embedding encoder layer.')
+    parser.add_argument('--model_encoder_num_convs',
+                        type=int,
+                        default=2,
+                        help='Number of convolution sublayers in each model encoder layer.')
+    parser.add_argument('--model_encoder_conv_kernel_size',
+                        type=int,
+                        default=5,
+                        help='Kernel size of each convolution sublayer in each model encoder layer.')
+    parser.add_argument('--model_encoder_num_heads',
+                        type=int,
+                        default=4,
+                        help='Number of attention heads in each encoder block in the model encoder layer.')
+    parser.add_argument('--model_encoder_num_blocks',
+                        type=int,
+                        default=7,
+                        help='Number of encoder blocks in each model encoder layer.')

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from util import masked_softmax
 
-from layers_QANet.LayerNorm import LayerNorm
+# from layers_QANet.LayerNorm import LayerNorm
 
 import math
 
@@ -30,18 +30,15 @@ class SelfAttention(nn.Module):
         
         self.fc_out = nn.Linear(d_model, d_model) # last FC layer after concatnation
 
-        self.layernorm = LayerNorm(d_model)
+        # self.layernorm = LayerNorm(d_model)
 
-    def forward(self, x, mask=None):
+    def forward(self, x):
         # x: (batch_size, seq_len, d_model)
         batch_size, seq_len, d_model = tuple(x.size())
 
-        
-        heads = Variable(torch.zeros(batch_size, seq_len, self.n_heads, self.d_v))
-        try:
-            heads.cuda()
-        
-        x_out = self.layernorm(x)
+        heads = torch.cuda.FloatTensor(batch_size, seq_len, self.n_heads, self.d_v).fill_(0)    
+        # x_out = self.layernorm(x)
+        x_out = F.layer_norm(x, [x.size(-1)])
 
         for i in range(self.n_heads):
             Q = self.fc_query[i](x_out)
@@ -53,9 +50,7 @@ class SelfAttention(nn.Module):
             # A = softmax(Q*K.T/sqrt(d_k))*V
             tmp = torch.bmm(Q, K.permute(0,2,1)) # (batch_size, seq_len, seq_len)
             tmp = tmp / math.sqrt(self.d_k)
-            # 分别对两个seq_len维度进行masked_softmax
-            tmp = masked_softmax(logits=tmp, mask=mask, dim=1)
-            tmp = masked_softmax(logits=tmp, mask=mask, dim=2)
+            tmp = F.softmax(tmp, dim=1)
             heads[:,:,i,:] = torch.bmm(tmp,V) # (batch_size, seq_len, d_v)
         
         x_out = heads.view(batch_size, seq_len, -1).contiguous()

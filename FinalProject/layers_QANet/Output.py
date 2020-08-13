@@ -7,12 +7,12 @@ from util import masked_softmax
 class Output(nn.Module):
     def __init__(self, d_model, drop_prob=0.1):
         super().__init__()
-        self.w1 = nn.Linear(8 * d_model, 1)
-        self.w2 = nn.Linear(8 * d_model, 1)
+        self.w1 = nn.Linear(2 * d_model, 1)
+        self.w2 = nn.Linear(2 * d_model, 1)
         self.dropout = nn.Dropout(drop_prob)
 
     def forward(self, M0, M1, M2, mask):
-        # 08/10: mod: (batch_size, seq_len, 4h)
+        # 08/10: mod: (batch_size, seq_len, h)
         # mask: (batch_size, seq_len, 1)
 
         logits_1 = F.softmax(self.w1(torch.cat([M0, M1], dim=-1)), dim=-1)

@@ -58,8 +58,8 @@ class QANet(nn.Module):
         c_emb = self.hwy(cw_emb, cc_emb)  # (batch_size, c_len, )
         q_emb = self.hwy(qw_emb, qc_emb)  # (batch_size, q_len, word_dim+char_dim)
 
-        c_enc = self.emb_enc_block(c_emb, c_mask)
-        q_enc = self.emb_enc_block(q_emb, q_mask)
+        c_enc = self.emb_enc_block(c_emb)
+        q_enc = self.emb_enc_block(q_emb)
         c2q_att = self.c2q_att(c_enc, q_enc, c_mask, q_mask)
 
         m0 = self.mod_enc_blocks(c2q_att) ## 取消添加 mask

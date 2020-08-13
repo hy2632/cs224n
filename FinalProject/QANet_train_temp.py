@@ -1,9 +1,6 @@
 """Train a model on SQuAD.
-   Use QANet.
-
 Author:
     Chris Chute (chute@stanford.edu)
-    *Hua Yao (hy2632@columbia.edu)
 """
 
 import numpy as np
@@ -15,14 +12,12 @@ import torch.optim as optim
 import torch.optim.lr_scheduler as sched
 import torch.utils.data as data
 import util
+import math
 
-from args_QANet import get_train_args
-
+from QANet_args_temp import get_train_args
 from collections import OrderedDict
 from json import dumps
-
-from models_QANet import QANet
-
+from QANet_model_temp import QANet
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from ujson import load as json_load
@@ -51,22 +46,12 @@ def main(args):
 
     # Get model
     log.info('Building model...')
-
-    # ==============================================================================
-    char_vectors = util.torch_from_json(args.char_emb_file)
-    char_vocab_size, _ = tuple(char_vectors.size())
-
-    model = QANet(
-        word_vectors,
-        char_vocab_size=char_vocab_size,
-        char_dim=200,
-        d_model=128,
-        drop_prob=0.,
-        num_mod_blocks=7,
-        maximum_context_length=400
-    )
-    # ==============================================================================
-
+    model = QANet(word_vectors, args.hidden_size, args.char_embed_size, args.word_from_char_size,
+                  args.dropout_main,
+                  args.embed_encoder_num_convs, args.embed_encoder_conv_kernel_size,
+                  args.embed_encoder_num_heads, args.embed_encoder_num_blocks,
+                  args.model_encoder_num_convs, args.model_encoder_conv_kernel_size,
+                  args.model_encoder_num_heads, args.model_encoder_num_blocks)
     model = nn.DataParallel(model, args.gpu_ids)
     if args.load_path:
         log.info(f'Loading checkpoint from {args.load_path}...')
@@ -85,11 +70,10 @@ def main(args):
                                  log=log)
 
     # Get optimizer and scheduler
-    optimizer = optim.Adadelta(model.parameters(),
-                               args.lr,
-                               eps = 1e-6,
-                               weight_decay=args.l2_wd)
-    scheduler = sched.LambdaLR(optimizer, lambda s: 1.)  # Constant LR
+    # Increase LR from 0 to args.lr in num_warmup_steps steps, then keep constant LR
+    optimizer = optim.Adam(model.parameters(), args.lr, betas=(0.8, 0.999), eps=1e-07, weight_decay=args.l2_wd)
+    scheduler = sched.LambdaLR(optimizer,
+                               lambda s: math.log(1+s)/math.log(args.num_warmup_steps) if s < args.num_warmup_steps else 1) 
 
     # Get data loader
     log.info('Building dataset...')
@@ -115,22 +99,17 @@ def main(args):
         log.info(f'Starting epoch {epoch}...')
         with torch.enable_grad(), \
                 tqdm(total=len(train_loader.dataset)) as progress_bar:
-            for cw_idxs, cc_idxs, qw_idxs, qc_idxs, y1, y2, ids in train_loader: # 08/09 可见作者已经贴心地预留了cc_idxs...
+            for cw_idxs, cc_idxs, qw_idxs, qc_idxs, y1, y2, ids in train_loader:
                 # Setup for forward
                 cw_idxs = cw_idxs.to(device)
-                cc_idxs = cc_idxs.to(device)
                 qw_idxs = qw_idxs.to(device)
+                cc_idxs = cc_idxs.to(device)
                 qc_idxs = qc_idxs.to(device)
                 batch_size = cw_idxs.size(0)
                 optimizer.zero_grad()
 
                 # Forward
-                # 8/12 当seq_len > max_context_length = 400 时raise ValueError 并跳过
-                try:
-                    log_p1, log_p2 = model(cw_idxs, cc_idxs, qw_idxs, qc_idxs) # 08/09 增加cc_idxs 和 qc_idxs
-                except ValueError:
-                    continue
-
+                log_p1, log_p2 = model(cw_idxs, cc_idxs, qw_idxs, qc_idxs)
                 y1, y2 = y1.to(device), y2.to(device)
                 loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
                 loss_val = loss.item()
@@ -194,20 +173,13 @@ def evaluate(model, data_loader, device, eval_file, max_len, use_squad_v2):
         for cw_idxs, cc_idxs, qw_idxs, qc_idxs, y1, y2, ids in data_loader:
             # Setup for forward
             cw_idxs = cw_idxs.to(device)
-            cc_idxs = cc_idxs.to(device)
             qw_idxs = qw_idxs.to(device)
+            cc_idxs = cc_idxs.to(device)
             qc_idxs = qc_idxs.to(device)
             batch_size = cw_idxs.size(0)
 
             # Forward
-            # log_p1, log_p2 = model(cw_idxs, cc_idxs, qw_idxs, qc_idxs)
-
-            try:
-                log_p1, log_p2 = model(cw_idxs, cc_idxs, qw_idxs, qc_idxs) # 08/09 增加cc_idxs 和 qc_idxs
-            except ValueError:
-                continue
-
-
+            log_p1, log_p2 = model(cw_idxs, cc_idxs, qw_idxs, qc_idxs)
             y1, y2 = y1.to(device), y2.to(device)
             loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
             nll_meter.update(loss.item(), batch_size)
@@ -220,15 +192,18 @@ def evaluate(model, data_loader, device, eval_file, max_len, use_squad_v2):
             progress_bar.update(batch_size)
             progress_bar.set_postfix(NLL=nll_meter.avg)
 
-            preds, _ = util.convert_tokens(gold_dict, ids.tolist(),
-                                           starts.tolist(), ends.tolist(),
+            preds, _ = util.convert_tokens(gold_dict,
+                                           ids.tolist(),
+                                           starts.tolist(),
+                                           ends.tolist(),
                                            use_squad_v2)
             pred_dict.update(preds)
 
     model.train()
 
     results = util.eval_dicts(gold_dict, pred_dict, use_squad_v2)
-    results_list = [('NLL', nll_meter.avg), ('F1', results['F1']),
+    results_list = [('NLL', nll_meter.avg),
+                    ('F1', results['F1']),
                     ('EM', results['EM'])]
     if use_squad_v2:
         results_list.append(('AvNA', results['AvNA']))
