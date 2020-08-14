@@ -49,7 +49,7 @@ class QANet(nn.Module):
         self.survival_prob = survival_prob
 
         ############################### Initialize layers ###########################################
-        self.emb = layers.Embedding(word_vectors=word_vectors,
+        self.emb = QANet_layers_temp.Embedding(word_vectors=word_vectors,
                                     char_vocab_size = char_vocab_size,
                                     word_emb_size = word_char_emb_size,
                                     char_emb_size = char_emb_size,
@@ -59,26 +59,26 @@ class QANet(nn.Module):
         self.embedding_projection = nn.Linear(self.embd_size, self.hidden_size)
         #nn.init.kaiming_normal_(self.embedding_projection.weight, nonlinearity = 'relu')
 
-        self.emb_enc = layers.Embedding_Encoder( self.num_blocks_embd,
+        self.emb_enc = QANet_layers_temp.Embedding_Encoder( self.num_blocks_embd,
                                                  self.num_conv_embd,
                                                  self.kernel_size,
                                                  self.hidden_size,
                                                  self.num_heads,
                                                  self.survival_prob)
                                 
-        self.att = layers.BiDAFAttention(hidden_size= self.hidden_size)
+        self.att = QANet_layers_temp.BiDAFAttention(hidden_size= self.hidden_size)
 
         self.attention_projection = nn.Linear(4 * self.hidden_size, self.hidden_size)
         #nn.init.kaiming_normal_(self.attention_projection.weight, nonlinearity = 'relu')
 
-        self.mod = layers.Model_Encoder(self.num_blocks_model, 
+        self.mod = QANet_layers_temp.Model_Encoder(self.num_blocks_model, 
                                         self.num_conv_model, 
                                         self.kernel_size, 
                                         self.hidden_size, 
                                         self.num_heads, 
                                         self.survival_prob)
 
-        self.out = layers.output_layer(self.hidden_size)
+        self.out = QANet_layers_temp.output_layer(self.hidden_size)
 
     def forward(self, cw_idxs, qw_idxs, cc_idxs, qc_idxs):
         c_mask = torch.zeros_like(cw_idxs) != cw_idxs
