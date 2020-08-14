@@ -1,6 +1,9 @@
 """Train a model on SQuAD.
 Author:
     Chris Chute (chute@stanford.edu)
+    Axel Moyal (axmoyal@stanford.edu)
+    Guillermo Bescos (gbescos@stanford.edu)
+    Lucas Soffer (lsoffer@stanford.edu)
 """
 
 import numpy as np
@@ -44,14 +47,28 @@ def main(args):
     log.info('Loading embeddings...')
     word_vectors = util.torch_from_json(args.word_emb_file)
 
+
+    # Get size of char vocab
+    with open(args.char2idx_file, 'r') as fh:
+        char_vocab_size = len(json_load(fh))
+
     # Get model
     log.info('Building model...')
-    model = QANet(word_vectors, args.hidden_size, args.char_embed_size, args.word_from_char_size,
-                  args.dropout_main,
-                  args.embed_encoder_num_convs, args.embed_encoder_conv_kernel_size,
-                  args.embed_encoder_num_heads, args.embed_encoder_num_blocks,
-                  args.model_encoder_num_convs, args.model_encoder_conv_kernel_size,
-                  args.model_encoder_num_heads, args.model_encoder_num_blocks)
+    model = QANet(word_vectors=word_vectors,
+                  hidden_size=args.hidden_size,
+                  char_vocab_size = char_vocab_size,
+                  char_emb_size = args.char_emb_size,
+                  word_char_emb_size = args.word_char_emb_size,
+                  drop_prob=args.drop_prob,
+                  num_blocks_embd = args.num_blocks_embd,
+                  num_conv_embd = args.num_conv_embd,
+                  kernel_size = args.kernel_size,
+                  num_heads = args.num_heads,
+                  num_blocks_model = args.num_blocks_model,
+                  num_conv_model = args.num_conv_model,
+                  dropout_char = args.dropout_char,
+                  dropout_word = args.dropout_word,
+                  survival_prob = args.survival_prob)
     model = nn.DataParallel(model, args.gpu_ids)
     if args.load_path:
         log.info(f'Loading checkpoint from {args.load_path}...')
@@ -70,10 +87,12 @@ def main(args):
                                  log=log)
 
     # Get optimizer and scheduler
-    # Increase LR from 0 to args.lr in num_warmup_steps steps, then keep constant LR
-    optimizer = optim.Adam(model.parameters(), args.lr, betas=(0.8, 0.999), eps=1e-07, weight_decay=args.l2_wd)
-    scheduler = sched.LambdaLR(optimizer,
-                               lambda s: math.log(1+s)/math.log(args.num_warmup_steps) if s < args.num_warmup_steps else 1) 
+    #params = filter(lambda param: param.requires_grad, model.parameters())
+    
+    optimizer = optim.Adam(lr=1, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.l2_wd, params=model.parameters())
+    cr = args.lr / math.log2(args.warm_up)
+    scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda ee: cr * math.log2(ee + 1) if ee < args.warm_up else args.lr)
+
 
     # Get data loader
     log.info('Building dataset...')
@@ -94,6 +113,10 @@ def main(args):
     log.info('Training...')
     steps_till_eval = args.eval_steps
     epoch = step // len(train_dataset)
+
+    torch.autograd.set_detect_anomaly(True)
+
+    
     while epoch != args.num_epochs:
         epoch += 1
         log.info(f'Starting epoch {epoch}...')
@@ -103,13 +126,16 @@ def main(args):
                 # Setup for forward
                 cw_idxs = cw_idxs.to(device)
                 qw_idxs = qw_idxs.to(device)
-                cc_idxs = cc_idxs.to(device)
-                qc_idxs = qc_idxs.to(device)
+                
+                cc_idxs=cc_idxs.to(device)
+                qc_idxs=qc_idxs.to(device)
+                
+                
                 batch_size = cw_idxs.size(0)
                 optimizer.zero_grad()
 
                 # Forward
-                log_p1, log_p2 = model(cw_idxs, cc_idxs, qw_idxs, qc_idxs)
+                log_p1, log_p2 = model(cw_idxs, qw_idxs, cc_idxs, qc_idxs)
                 y1, y2 = y1.to(device), y2.to(device)
                 loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
                 loss_val = loss.item()
@@ -174,12 +200,12 @@ def evaluate(model, data_loader, device, eval_file, max_len, use_squad_v2):
             # Setup for forward
             cw_idxs = cw_idxs.to(device)
             qw_idxs = qw_idxs.to(device)
-            cc_idxs = cc_idxs.to(device)
-            qc_idxs = qc_idxs.to(device)
             batch_size = cw_idxs.size(0)
 
+            cc_idxs=cc_idxs.to(device)
+            qc_idxs=qc_idxs.to(device)
             # Forward
-            log_p1, log_p2 = model(cw_idxs, cc_idxs, qw_idxs, qc_idxs)
+            log_p1, log_p2 = model(cw_idxs, qw_idxs, cc_idxs, qc_idxs)
             y1, y2 = y1.to(device), y2.to(device)
             loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
             nll_meter.update(loss.item(), batch_size)

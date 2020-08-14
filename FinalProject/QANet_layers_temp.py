@@ -1,114 +1,366 @@
 """Assortment of layers for use in models.py.
-Modified from CS224n Default Project starter code by Chris Chute (chute@stanford.edu)
+Author:
+    Axel Moyal (axmoyal@stanford.edu)
+    Guillermo Bescos (gbescos@stanford.edu)
+    Lucas Soffer (lsoffer@stanford.edu)
 """
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from util import masked_softmax
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from util import masked_softmax, get_available_devices
+
+
+class Stochastic_Dropout(nn.Module): 
+
+    def __init__(self, final_survival_prob, depth):
+        """Stochastic layer dropout 
+            https://arxiv.org/pdf/1603.09382.pdf
+            Args: 
+                Final_survival_prob: survival probability of the last layer, p_L (in paper)
+                depth: Depth of the stack of layer (number of layers)
+                dropout_rate: regular drop out rate
+        """ 
+        super(Stochastic_Dropout, self).__init__()
+        ######################## PARAMETERS #############################
+        self.final_survival = final_survival_prob  
+        self.depth = depth
+    
+    def forward(self, x, layer, norm, current_depth, multihead = (False, None)):
+        """ NOTE: ALL ENCODER BLOCK RELUs ARE PERFORMED HERE
+            Args: 
+                @param x: skip connection
+                @param layer: layer to be implemented
+                @param norm: norm layer
+                @param current_depth: depth at the current time
+                @param multihead: tuple(bool indicating whether "layer" is multihead, mask required for multihead)
+        """ 
+        if self.training:
+            survived = 1 - current_depth/self.depth*(1-self.final_survival) > torch.empty(1,1).uniform_(0,1)
+            if survived and multihead[0]:
+                temp = norm(x)
+                temp = temp.permute(1, 0, 2)
+                temp, _ = layer(temp, temp, temp, key_padding_mask= (multihead[1] == False))
+                temp = temp.permute(1, 0, 2)
+                return x + temp
+            elif survived and not multihead[0]: 
+                return x + F.relu(layer(norm(x)))
+            elif not survived: 
+                return x
+        else:
+            if multihead[0]:
+                temp = norm(x)
+                temp = temp.permute(1, 0, 2)
+                temp, _ = layer(temp, temp, temp, key_padding_mask= (multihead[1] == False))
+                temp = temp.permute(1, 0, 2)
+                return x + temp
+            else:
+                return x + F.relu(layer(norm(x)))
+
+
+class DepthSep_conv(nn.Module):
+    #Depthwise seperable convolution layer. is memory efficient and has better generalization
+    def __init__(self, in_dim, out_dim, kernel_size):
+        """
+            Args: 
+                num_conv: numb
+                er of convolutional layers
+                kernel_size: kernel size of CNN 
+                num_filters: number of filters in CNN
+                embed_size: size of embeding of a word
+        """ 
+        super(DepthSep_conv, self).__init__()
+        self.depth = nn.Conv1d(in_dim, in_dim, kernel_size, padding = int(kernel_size // 2), groups = in_dim, bias = False)
+        self.seperate = nn.Conv1d(in_dim, out_dim, kernel_size =1 , padding = 0, bias = True)
+
+        #nn.init.kaiming_normal_(self.depth.weight, nonlinearity = 'relu')
+        #nn.init.kaiming_normal_(self.seperate.weight, nonlinearity = 'relu')
+
+    def forward(self, x): 
+        return self.seperate(self.depth(x.permute(0,2,1))).permute(0,2,1)
+
+
+class Encoder_Block(nn.Module): 
+
+    def __init__(self, num_conv, kernel_size, hidden_size, num_heads, final_survival_prob, depth): 
+        """QAnet Encoder block 
+            https://arxiv.org/pdf/1804.09541.pdf
+        Args: 
+            @param num_conv: number of convolutional layers
+            @param kernel_size: kernel size of CNN 
+            @param hidden_size: size of embeding of a word
+            @param num_heads: number of heads in multihead attention
+            @param final_survival_prob: probability of survival of the FINAL sublayer 
+            @param depth: depth of the stack
+        """
+
+        super(Encoder_Block, self).__init__()
+
+        ######################## PARAMETERS #############################
+        self.num_conv = num_conv
+
+
+        ##################### Initialize layers #########################
+
+        #Positional encoder
+        self.position_encoder = PositionEncoder(hidden_size)
+
+        #stochastic depth layer
+        self.stochastic_drop = Stochastic_Dropout(final_survival_prob, depth)
+
+        #Convolutional blocks
+        self.conv_layers = nn.ModuleList([DepthSep_conv(hidden_size, hidden_size, kernel_size) for _ in range(num_conv)])
+        self.conv_norm_layers = nn.ModuleList([nn.LayerNorm(hidden_size) for _ in range(num_conv)])
+
+        #Multihead Attention 
+        self.multihead = nn.MultiheadAttention(hidden_size, num_heads)
+        self.multihead_norm = nn.LayerNorm(hidden_size)
+
+        #Feedforwad layer
+        self.frward = nn.Linear(hidden_size, hidden_size)
+        self.forward_norm =nn.LayerNorm(hidden_size)
+        #nn.init.kaiming_normal_(self.frward.weight, nonlinearity='relu')
+
+
+    def forward(self, x, mask, depth_start):
+        """QAnet Encoder Block
+        Args: 
+            @param x: minibatch (batch_size, context/query_length, hidden_size)
+            @param mask: context/query mask 
+            @param depth_start: depth index at the start of encoder block
+        Outputs:
+            @returns x: minibatch (batch_size, context/query_length, hidden_size)
+        """
+
+        #postional encoder
+        x = self.position_encoder(x)
+
+        #convolution section
+        for i, conv, norm in zip(range(self.num_conv),self.conv_layers, self.conv_norm_layers):
+            x = self.stochastic_drop(x, conv, norm, i + depth_start)
+
+        #Multihead attention section
+        x = self.stochastic_drop(x, self.multihead, self.multihead_norm, depth_start + self.num_conv, (True, mask))
+
+        #Linear Section 
+        x = self.stochastic_drop(x, self.frward, self.forward_norm, depth_start + self.num_conv + 1) 
+
+        return x
+
+
+class Embedding_Encoder(nn.Module): 
+
+    def __init__(self, num_blocks, num_conv, kernel_size, hidden_size, num_heads, survival_prob): 
+        """QAnet embedding encoder 
+           https://arxiv.org/pdf/1804.09541.pdf
+        Args: 
+            @param num_blocks: number of encoder blocks 
+            @param num_conv: number of convolutional layers per encoder block 
+            @param kernel_size: kernel size of depthwise seperable convolution
+            @param hidden_size: hidden dimension of QAnet model
+            @param num_heads: number of heads in multihead attention of encoder block
+            @param survival_prob: probability of survival of the FINAL sublayer 
+        """
+        super(Embedding_Encoder, self).__init__()
+
+        ######################## PARAMETERS #############################
+        self.num_blocks = num_blocks
+        self.num_conv = num_conv
+        self.kernel_size = kernel_size
+        self.hidden_size = hidden_size
+        self.num_heads = num_heads
+        self.survival_prob = survival_prob
+        self.total_depth = num_blocks*(num_conv + 2) - 1
+
+
+        ##################### Initialize layers #########################
+        #stack of Encoder blocks
+        self.enc= nn.ModuleList([Encoder_Block( self.num_conv, 
+                                                self.kernel_size, 
+                                                self.hidden_size, 
+                                                self.num_heads, 
+                                                self.survival_prob,
+                                                self.total_depth) for _ in range(num_blocks)])
+
+    def forward(self, x_context, x_query, c_mask, q_mask):
+        """QAnet embedding encoder
+        Args: 
+            @param x_context: context minibatch (batch_size, context_length,hidden_size)
+            @param x_query: query minibatch (batch_size, query_length, hidden_size)
+            @param c_mask: context mask 
+            @param q_mask: query mask 
+        Outputs:
+            @returns x_context: (batch_size, context_length, hidden_size)
+            @returns x_query: (batch_size, query_length, hidden_size)
+        """
+        for i, block in zip(range(self.num_blocks), self.enc): 
+            x_context = block(x_context, c_mask, i*(self.num_conv + 2))
+            x_query = block(x_query, q_mask, i*(self.num_conv + 2))
+        return x_context, x_query
+
+
+class Model_Encoder(nn.Module): 
+
+    def __init__(self, num_blocks, num_conv, kernel_size, hidden_size, num_heads, survival_prob):
+        """QAnet model encoder 
+           https://arxiv.org/pdf/1804.09541.pdf
+        Args: 
+            @param num_blocks: number of encoder blocks 
+            @param num_conv: number of convolutional layers per encoder block 
+            @param kernel_size: kernel size of depthwise seperable convolution
+            @param hidden_size: hidden dimension of QAnet model
+            @param num_heads: number of heads in multihead attention of encoder block
+            @param survival_prob: probability of survival of the FINAL sublayer 
+        """ 
+        super(Model_Encoder, self).__init__()
+
+        ######################## PARAMETERS #############################
+        self.num_conv = num_conv
+        self.num_blocks = num_blocks
+        self.kernel_size = kernel_size
+        self.hidden_size = hidden_size
+        self.num_heads = num_heads
+        self.survival_prob = survival_prob
+        self.total_depth = num_blocks*(num_conv + 2) - 1
+
+        ##################### Initialize layers #########################
+        #Encoder Block Stack
+        self.enc = nn.ModuleList([Encoder_Block(self.num_conv, 
+                                                self.kernel_size, 
+                                                self.hidden_size, 
+                                                self.num_heads,
+                                                self.survival_prob,
+                                                self.total_depth) for _ in range(num_blocks)])
+        
+
+    def forward(self, x, mask):
+        """QAnet model encoder
+        Args: 
+            @param x: biderectional attention minibatch (batch_size, context_length, 4*hidden size)
+            @param c_mask: context mask 
+        Outputs:
+            @returns out1: (batch_size, context_length, hidden_size)
+            @returns out2: (batch_size, context_length, hidden_size)
+            @returns out2: (batch_size, context_length, hidden_size)
+        """
+        for i, block in zip(range(self.num_blocks), self.enc): 
+            x = block(x, mask, i*(self.num_conv + 2))
+        out1 = x
+        for i, block in zip(range(self.num_blocks), self.enc): 
+            x = block(x, mask, i*(self.num_conv + 2))
+        out2 = x
+        x = out2
+        for i, block in zip(range(self.num_blocks), self.enc): 
+            x = block(x, mask, i*(self.num_conv + 2))
+        out3 = x
+        return out1, out2, out3
+
+    
+class output_layer(nn.Module): 
+    def __init__(self, hidden_size):
+        """QAnet output layer
+           https://arxiv.org/pdf/1804.09541.pdf
+        Args: 
+            @param hidden_size: hidden dimension of QAnet model
+        """
+        super(output_layer, self).__init__() 
+
+        ##################### Initialize layers #########################
+        self.linear1 = nn.Linear(2*hidden_size, 1, bias = False)
+        self.linear2 = nn.Linear(2*hidden_size, 1, bias = False)
+        #nn.init.xavier_uniform_(self.linear1.weight)
+        #nn.init.xavier_uniform_(self.linear2.weight)
+
+    def forward(self, in1, in2, in3, mask): 
+        """QAnet output layer
+        Args: 
+            @param in1: output of first encoder block of model encoder  (batch_size, context_length, hidden_size)
+            @param in2: output of second encoder block of model encoder  (batch_size, context_length, hidden_size)
+            @param in3: output of third encoder block of model encoder  (batch_size, context_length, hidden_size)
+            @param mask: context mask 
+        Outputs:
+            @returns start: start prediction 
+            @returns end: end prediction 
+        """
+        start = self.linear1(torch.cat((in1, in2 ), 2))
+        end = self.linear2(torch.cat((in1, in3), 2))
+        start = masked_softmax(start.squeeze(), mask, log_softmax= True)
+        end = masked_softmax(end.squeeze(), mask, log_softmax= True)
+
+        return start, end
 
 
 class Embedding(nn.Module):
-    """Embedding layer used by BiDAF.
-    Word vectors are obtained by concatenating pre-trained word-level vectors and CharEmbedding vectors.
-    Word vectors are further refined using dropout and a 2-layer Highway Encoder
-    (see `HighwayEncoder` class for details).
-    Note that unlike the orignal paper, we apply the projection down to hidden_size BEFORE applying highway network.
-    This way the model uses fewer parameters and is faster.
-    Args:
-        word_vectors (torch.Tensor): Pre-trained word vectors.
-        hidden_size (int): Size of hidden activations.        
-    """
-    def __init__(self, word_vectors, hidden_size, char_embed_size, word_from_char_size):
+    def __init__(self, word_vectors, char_vocab_size, word_emb_size, char_emb_size, drop_prob_char, drop_prob_word):
+        """QAnet embedding Layer
+            https://arxiv.org/pdf/1804.09541.pdf
+        Args:
+            @param word_vectors : Pre-trained word vectors.
+            @oaram char_vocab_size : Size of character vocabulary
+            @param word_emb_size: Size of character embedding
+            @param dropout_prob_char : dropout probability of character embedding 
+            @param dropout_prob_word: dropout probability of word embedding
+        """
         super(Embedding, self).__init__()
-        
-        ## Obtain word embeddings from characters
-        self.char_embed = WordFromCharEmbedding(char_embed_size, word_from_char_size)
-        
-        ## Obtain word embeddings from pretrained word vectors
-        self.word_embed = nn.Embedding.from_pretrained(word_vectors)
-        
-        self.charDropout = nn.Dropout(0.05)
-        self.wordDropout = nn.Dropout(0.1)        
 
-        self.wordLinear = nn.Parameter(torch.empty(word_vectors.size(1), hidden_size))
-        nn.init.xavier_uniform_(self.wordLinear)
-        self.charLinear = nn.Parameter(torch.empty(word_from_char_size, hidden_size))
-        nn.init.xavier_uniform_(self.charLinear)
+        ######################## PARAMETERS #############################
+        self.drop_prob_char = drop_prob_char
+        self.drop_prob_word = drop_prob_word
+
+        ##################### Initialize layers #########################
+        self.embed = nn.Embedding.from_pretrained(word_vectors)
+        self.char_embed = ModelCharEmbeddings(char_vocab_size,word_emb_size,char_emb_size, drop_prob_char)
+        self.hwy = HighwayEncoder(2, word_vectors.size(1) + word_emb_size)
+
+    def forward(self, x, y):
+        """
+        @param x: Index of words (batch_size, seq_length)
+        @param y: Index of characters (batch_size, seq_len, max_word_len)
+        @out (batch_size, seq_len, glove_dim + word_emb_size)
+        """
+        emb_word = self.embed(x)   # (batch_size, seq_len, embed_size)
+        emb_char = self.char_embed(y) # (batch_size, seq_len, embed_size)
+        emb = torch.cat([F.dropout(emb_word, self.drop_prob_word, self.training),
+                         emb_char],dim=2)
+
+        emb = self.hwy(emb)   # (batch_size, seq_len, glove_dim + word_emb_size)
+        return emb
+
+
+class PositionEncoder(nn.Module):
+    def __init__(self, hidden_size, max_length = 600):
+        """ Postion Encoder from: Attention is all you need
+            https://arxiv.org/pdf/1706.03762.pdf
+        Args: 
+            @param hidden_size: hidden dimension of QAnet model
+            @param max_length: maximum length of context 
+        """
+        super(PositionEncoder, self).__init__()
+        #Parameters
+        self.hidden_size = hidden_size
+        self.max_length = max_length
+
+        #Creating Signal to add
+        pos = torch.arange(max_length).float()
+        i = torch.arange(self.hidden_size//2)
+
+        sin = torch.ones(self.max_length,self.hidden_size//2).transpose(0,1) * pos
+        cos = torch.ones(self.max_length,self.hidden_size//2).transpose(0,1) * pos
+
+        sin = torch.sin(sin.transpose(0,1) / (10000)**(2*i/self.hidden_size))
+        cos = torch.cos(cos.transpose(0,1) / (10000)**(2*i/self.hidden_size))
+
+        self.signal2 = torch.zeros((sin.shape[0], 2*sin.shape[1]))
+        self.signal2[:,:-1:2] = sin
+        self.signal2[:,1::2] = cos
+        device, _ = get_available_devices()
+        self.signal2 = self.signal2.to(device)
+
+    def forward(self, x):
+        return x + self.signal2[:x.shape[1],:]
         
-        self.hwy = HighwayEncoder(2, hidden_size)        
 
-    def forward(self, text_word_ids, text_char_ids):
-    	"""Arguments:
-    	text_word_ids: tensor of shape (batch_size, text_len). Containing indices of words in the context/query.
-    	text_char_ids: tensor of shape (batch_size, text_len, char_embed_size). Contain indices of words in the context/query.
-    	
-    	Output: tensor of shape (batch_size, text_len, hidden_size)
-    	
-    	This method applies linear projections separately instead of concatenating the input tensors to save a little memory.
-    	"""
-    	## Look up embeddings.
-	## Shapes (batch_size, text_len, word_vectors.size(1)) and (batch_size, text_len, word_from_char_size), respectively
-    	x, y = self.wordDropout(self.word_embed(text_word_ids)), self.charDropout(self.char_embed(text_char_ids))
-    	
-    	## Apply linear layers. Shapes both (batch_size, text_len, hidden_size)
-    	x, y = torch.matmul(x, self.wordLinear), torch.matmul(y, self.charLinear)
-    	
-    	return self.hwy(x+y)
-
-		
-class WordFromCharEmbedding(nn.Module):
-	"""Obtain embedding of words from convoling and maxpooling their characters' embeddings.
-	
-	Arugments:
-	char_embed_size (int): Dimension of each character vector.
-	word_from_char_size (int): Dimension of word vector obtained from character vectors.
-	"""
-	
-	def __init__(self, char_embed_size, word_from_char_size):
-		super(WordFromCharEmbedding, self).__init__()
-		
-		## There are 1376 characters used in our dataset
-		## More generally, char_vocab_size can be computed by importing char2idx_dic from util and call len(char2idx_dic())
-		char_vocab_size = 1376
-		
-		char_embed_weight = torch.Tensor(char_vocab_size, char_embed_size)
-		nn.init.normal_(char_embed_weight)
-		
-		## Initialize char vector of --NULL-- to be 0. 
-		char_embed_weight[0].fill_(0)
-		
-		## Initialize char vector of --OOV-- to be 0.
-		## However, unlike the char vector of --NULL--, this char vector does receive gradients.				
-		char_embed_weight[1].fill_(0) 
-		self.char_embedding = nn.Embedding.from_pretrained(char_embed_weight, freeze=False)
-		del char_embed_weight
-		
-		self.conv = nn.Conv1d(char_embed_size, word_from_char_size, kernel_size = 5, padding = 2)
-		
-	def forward(self, x):
-		"""
-		x: input tensor of shape (batch_size, text_len, max_word_len).
-			Here text_len is the length of the context/query; max_word_len is the longest word in the batch.
-		Output: Tensor of size (batch_size, text_len, word_from_char_size)
-		"""		
-		x = self.char_embedding(x) ## size (batch_size, text_len, max_word_len, char_embed_size)
-		batch_size, text_len, max_word_len, char_embed_size = x.size()
-		
-		## Reshape and transpose x to follow the convention of nn.Conv1D:
-		## This module can only take 3D tensors, and the number of input channels has to be the middle dimension
-		## Using view() before transpose() means we don't need to apply contiguous()
-		## size: (batch_size * text_len, char_embed_size, max_word_len).
-		x = x.view(-1, max_word_len, char_embed_size).transpose(1,2) 
-		
-		x = self.conv(x) ## size: (batch_size * text_len, word_from_char_size, max_word_len)
-		x, _ = torch.max(x, 2) ## size: (batch_size * text_len, word_from_char_size)
-		x = F.relu(x) ## size: (batch_size * text_len, word_from_char_size)
-		x = x.view(batch_size, text_len, -1) ## size: (batch_size, text_len, word_from_char_size)
-		
-		return x
-		
 class HighwayEncoder(nn.Module):
     """Encode an input sequence using a highway network.
     Based on the paper:
@@ -125,6 +377,9 @@ class HighwayEncoder(nn.Module):
                                          for _ in range(num_layers)])
         self.gates = nn.ModuleList([nn.Linear(hidden_size, hidden_size)
                                     for _ in range(num_layers)])
+#        for gate,trans in zip(self.gates, self.transforms): 
+            #nn.init.kaiming_normal_(gate.weight, nonlinearity= 'sigmoid')
+            #nn.init.kaiming_normal_(trans.weight, nonlinearity= 'relu')
 
     def forward(self, x):
         for gate, transform in zip(self.gates, self.transforms):
@@ -134,285 +389,95 @@ class HighwayEncoder(nn.Module):
             x = g * t + (1 - g) * x
 
         return x
+
+
+class CNN(nn.Module):
+
+    def __init__(self,embed_size,char_embed_size=50,ker=5,pad=1):
+        """
+        Constructor for the gate model
+        @param embed_size : int for the size of the word  embeded size
+        @param char_embded_size  : int for the size of the caracter  embeded size
+        @param ker : int kernel_size used in Convolutions
+        @param pad : int padding used in Convolutions
+        @param stri : int  number of stride.
+        """
+        super(CNN, self).__init__() 
+
+        ##################### Initialize layers #########################
+        self.conv_layer=nn.Conv1d(in_channels=char_embed_size, out_channels=embed_size, kernel_size=ker, padding=pad)
+        #nn.init.kaiming_normal_(self.conv_layer.weight, nonlinearity='relu')
+        self.maxpool=nn.AdaptiveMaxPool1d(1)
         
+    def forward(self,xreshaped):
+        """
+        forward function for computing the output
+        @param xreshaped : torch tensor of size [BATCH_SIZE, EMBED_SIZE, max_word_lenght]. 
+        @return xconvout : torch tensor after convolution and maxpooling [BATCH_SIZE, EMBED_SIZE].
+        """
+        xconv=self.conv_layer(xreshaped)
+        xconvout=self.maxpool(F.relu(xconv)).squeeze()
+        return xconvout
+
+
+class ModelCharEmbeddings(nn.Module): 
+
+    def __init__(self, char_vocab_size, word_embed_size, char_emb_size=50, prob=0.2):
+        """QAnet embedding Layer
+                https://arxiv.org/pdf/1804.09541.pdf
+            Args:
+                @param char_vocab_size : Size of character vocabulary
+                @param word_emb_size: Size of character embedding
+                @param char_emb_size: Size of character embeddings
+                @param dropout_prob_char: dropout probability of character embedding 
+        """
+        super(ModelCharEmbeddings, self).__init__()
+
+        ######################## PARAMETERS #############################
+        self.char_vocab_size = char_vocab_size
+        self.word_embed_size = word_embed_size
+        self.char_emb_size=char_emb_size
+        self.prob = prob
+        pad_token_idx = 0 
+
+        ##################### Initialize layers #########################
+        self.model_embeddings=nn.Embedding(self.char_vocab_size,self.char_emb_size,pad_token_idx)
+        self.convnet=CNN(self.word_embed_size,self.char_emb_size)
         
-def PositionEncoder(x):
-	"""Positional Encoding layer with fixed encoding vector based on sin and cos,
-	as in http://nlp.seas.harvard.edu/2018/04/03/attention.html#position-wise-feed-forward-networks
-	Implemented as a function instead of a module because we may not know the shape of x
-	(in particular, the text_len dimension) before hand.
-	This function returns just the fixed PE vector instead of the sum x + PE:
-	This is to avoid computing PE again and again in repeated encoder blocks.
-	
-	Arguments:
-	x: input tensor of shape (batch_size, text_len, input_dim)
-	
-	Output:
-	pe: tensor of shape (text_len, input_dim)
-	pe[position, 2i] = sin( position * 10000^(- 2i / input_dim) )
-	pe[position, 2i+1] = cos( position * 10000^(- 2i / input_dim) )
-	"""
-	_, text_len, input_dim = x.size()
-	
-	position = torch.arange(text_len, dtype = torch.float, device = x.device) ## shape (text_len, )
-	
-	div_term = torch.arange(0, input_dim, 2, dtype = torch.float, device = x.device) ##shape (input_dim//2, )
-	div_term = torch.pow(10000, - div_term/input_dim)
-	
-	## Compute angles: tensor of shape (text_len, input_dim //2) as the outer product of position and div_term
-	## angles[position, i] = position * 10000^(- 2i / input_dim)
-	angles = torch.ger(position, div_term)
-	
-	## Interweave sin(angles) and cos(angles)
-	## shape (text_len, input_dim)
-	pe = torch.stack( (torch.sin(angles), torch.cos(angles)), dim = 2).view(text_len, input_dim) 
-	return pe
-	
-	
-class DepthwiseSeparableConvolution(nn.Module):
-	"""Depthwise Separable Convolutional Layer used in QANet encoder block
-	Illustration for depthwise separable convolution:
-	https://towardsdatascience.com/a-basic-introduction-to-separable-convolutions-b99ec3102728
-	Input is first passed through LayerNorm, then a Depthwise Separable Convolutional Layer.
-	Leakly ReLU activation is applied and a skip connection is added at the end.		
-	
-	Arguments:
-	input_dim (int): Dimension of each (non-batched) input vector.
-		In the Conv1D documentation, this is referred to as the number of input channels. 	
-	kernel_size (int): Kernel size.
-		Expected to be an odd number so that the output has the same shape as the input,
-		otherwise the skip connection doesn't make sense.
-	p_dropout (float): Dropout rate.
-	"""
-	def __init__(self, input_dim, kernel_size, p_dropout):
-		super(DepthwiseSeparableConvolution, self).__init__()
-		
-		## Depthwise convolution layer.
-		## Padding size is set to kernel_size // 2. This would guarantee that 
-		##	(1) the kernel is never too big, and
-		##	(2) the output text_len is the same as the input text_len.
-		## Bias is set to False because we will add bias in the pointwise convolution layer.
-		self.depthwise = nn.Conv1d(input_dim, input_dim, kernel_size, padding = kernel_size // 2,
-					   groups = input_dim, bias = False)
-		
-		## Pointwise convolution layer
-		## We use nn.Linear instead of nn.Conv1D with kernel size 1 - they do the same thing
-		## We are setting output_dim to be equal to input_dim even though it doesn't have to be in general.
-		## This is so that a skip connection can be used.
-		self.pointwise = nn.Linear(input_dim, input_dim)
-		
-		## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
-		self.layernorm = nn.LayerNorm(input_dim)
-		
-		self.dropout = nn.Dropout(p_dropout)
-		
-	def forward(self, x):
-		"""
-		x: input tensor of shape (batch_size, text_len, input_dim).
-			Here text_len is the length of the context/question.
-		The shape stays the same (batch_size, text_len, input_dim) through every step.
-		"""
-		skip_connection = x
-		x = self.layernorm(x)
-		
-		## Call transpose(1,2) back and forth because nn.Conv1D requires the number of input channels to be
-		## the MIDDLE dimension.
-		x = self.depthwise(x.transpose(1,2)).transpose(1,2)
-		
-		x = self.pointwise(x)		
-		x = F.leaky_relu(x)
-		return self.dropout(x) + skip_connection
-		
-class SelfAttention(nn.Module):
-	"""Multihead Attention with scaled dot product attention, as in "Attention is all you need"
-	Input is first passed through LayerNorm, then nn.MultiheadAttention. A skip connection is added at the end.
-	
-	Note that in nn.MultiheadAttention, kdim and vdim don't mean the same thing as they do in the paper.
-	In particular, here we don't need to manually set them to input_dim // num_heads.
-	
-	Arguments:
-	input_dim (int): Dimension of each (non-batched) input vector.
-	num_heads (int): Number of attention heads.
-	p_dropout (float): Dropout rate.
-	"""
-	def __init__(self, input_dim, num_heads, p_dropout):
-		super(SelfAttention, self).__init__()
-		
-		self.attention = nn.MultiheadAttention(input_dim, num_heads)
-		self.dropout = nn.Dropout(p_dropout)
-		
-		## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
-		self.layernorm = nn.LayerNorm(input_dim)
-		
-		
-	def forward(self, x, is_pad):
-		"""
-		x: input tensor of shape (batch_size, text_len, input_dim).
-			Here text_len is the length of the context/question.
-		is_pad: tensor of shape(batch_size, text_len). Hold value TRUE for pad tokens. 
-		Output: tensor of the same shape as the input, (batch_size, text_len, input_dim)
-		"""
-		skip_connection = x
-		
-		x = self.layernorm(x) ## shape (batch_size, text_len, input_dim)
-		
-		## shape (text_len, batch_size, input_dim).
-		## Here transpose() is needed because of the convention of nn.MultiheadAttention.
-		x = x.transpose(0,1)		
-		x, _ = self.attention(x, x, x, key_padding_mask = is_pad, need_weights=False) 
-		
-		x = x.transpose(0,1) ## shape (batch_size, text_len, input_dim)		
-		return self.dropout(x) + skip_connection
 
-class FeedForward(nn.Module):
-	"""Feed forward layer with ReLU activation.
-	Input is first passed through LayerNorm, then a linear layer, then non-linear activation, then another linear layer.
-	A skip connection is added at the end.
-	
-	Arguments:
-	input_dim (int): Dimension of each (non-batched) input vector.
-	p_dropout: Dropout rate.
-	"""
-	def __init__(self, input_dim, p_dropout):
-		super(FeedForward, self).__init__()
-		
-		self.linear1 = nn.Linear(input_dim, input_dim)
-		self.linear2 = nn.Linear(input_dim, input_dim)
-		self.dropout = nn.Dropout(p_dropout)
-		
-		## Layer normalization across the features, i.e. across the last dimension that is equal to input_dim
-		self.layernorm = nn.LayerNorm(input_dim)
-	def forward(self, x):
-		"""
-		x: input tensor of shape (batch_size, text_len, input_dim).
-		The shape stays the same (batch_size, text_len, input_dim) through every step.		
-		"""
-		skip_connection = x
-		
-		x = self.layernorm(x)
-		x = self.linear1(x)
-		x = F.relu(x)
-		x = self.linear2(x)
-		
-		return self.dropout(x) + skip_connection
+    def forward(self, input):
 
-class EncoderBlock(nn.Module):
-	"""One encoder block in the QANet model:	
-	Composition of: PositionEncoder -> DepthwiseSeparableConvolution * num_convs -> SelfAttention -> FeedForward.
-	
-	REMARK: Earlier layers have smaller dropout rates, as described in the QANet paper:
-	..."within EACH embedding or model encoder layer, each sublayer l has survival probability p_l= 1−l/L (1−p_L),
-	where L is the last layer and p_L= 0.9." 
-	
-	Arguments:
-	input_dim (int): Dimension of each (non-batched) input vector.
-		The output vector of each sublayer will also have the same dimension
-	num_convs (int): Number of convolutional layers inside the block
-	kernel_size (int): Kernel size of each convolutional layer
-	num_heads (int): Number of attention heads in each block
-	num_blocks (int): Number of EncoderBlock(s) in the embedding/model encoder layer.
-		This is needed to compute the dropout rate, see REMARK above and examples below.
-	block_index (int): The (0-based) index of the current EncoderBlock in the embedding/model encoder layer.
-		This is needed to compute the dropout rate, see REMARK above and examples below.
-	
-	Examples:
-	In the original paper, for the model encoder layer, num_block = 7, and block_index ranges from 0 to 6.
-	For the embedding encoder layer, num_block = 1 and block_index = 0 for the only block in the layer.
-	"""
-	def __init__(self, input_dim, num_convs, kernel_size, num_heads, num_blocks, block_index):
-		super(EncoderBlock, self).__init__()
-		
-		## Compute dropout rates, see the REMARK 1 above
-		## The layers in each block are:
-		## PositionEncoder, num_convs * DepthwiseSeparableConvolution, SelfAttention, and FeedForward.
-		layers_per_block = 3 + num_convs
-		
-		## Total number of layers in num_block blocks. This is the big L in the dropout rate formula above
-		L = layers_per_block*num_blocks 
-		
-		## The (1-based) index of the the first sublayer of the current block, which is PositionEncoder
-		## This is the small l in the dropout rate formula above
-		l = 1 + layers_per_block*block_index 
-		
-		self.PE_dropout = nn.Dropout(l * 0.1/L)
-		
-		## Convolutional layers.
-		self.convs = nn.Sequential(*[DepthwiseSeparableConvolution(input_dim, kernel_size, (l + i) * 0.1/L )
-					     for i in range(1,1+num_convs)])
-		
-		## Self-attention layer.
-		## This is the (2 + num_convs)-th sublayer in the block, so the dropout rate is (l + 1 + num_convs)*0.1/L
-		self.attention = SelfAttention(input_dim, num_heads, (l + 1 + num_convs)*0.1/L )
-		
-		## FeedForward layers.
-		## This is the (3 + num_convs)-th layer in the block, so the dropout rate is (l + 2 + num_convs)*0.1/L
-		self.feedfwd = FeedForward(input_dim, (l + 2 + num_convs)*0.1/L )
-		
-	def forward(self, x, pe, is_pad):
-		"""
-		x: input tensor of shape (batch_size, text_len, input_dim)
-		pe: expected to be PositionEncoder(x), shape (text_len, input_dim)
-		is_pad: tensor of shape(batch_size, text_len). Hold value TRUE for pad tokens. 
-		output: tensor of the same shape (batch_size, text_len, input_dim)
-		"""
-		x = self.PE_dropout(x + pe)		
-		x = self.convs(x) ## shape (batch_size, text_len, input_dim)
-		x = self.attention(x, is_pad)
-		x = self.feedfwd(x)
-		return x
+        batch_size, seq_len, word_len = input.shape
+        x_emb = self.model_embeddings(input)
+        x_emb = F.dropout(x_emb, self.prob, self.training)
 
-class EncoderLayer(nn.Module):
-	"""Wrap multiple encoder blocks together.
-	This module is used to construct one Embedding Encoder Layer or one Model Encoder Layer in QANet.
-	Note that in the case of Model Encoder, this is just ONE layer in the QANet diagram, not 3 repeated layers.
-	
-	Arguments:
-	input_dim (int): Dimension of each (non-batched) input vector.	
-	num_convs (int): Number of convolution sublayers in each encoder block.
-	kernel_size (int): Kernel size of each convolution sublayer.
-	num_heads (int): Number of attention heads in each encoder block.
-	num_blocks (int): Number of encoder blocks in each embedding encoder layer.
-	"""
-	def __init__(self, input_dim, num_convs, kernel_size, num_heads, num_blocks):
-		super(EncoderLayer, self).__init__()
-		
-		self.encoder_blocks = nn.ModuleList([
-			EncoderBlock(input_dim, num_convs, kernel_size, num_heads, num_blocks, block_index)
-			for block_index in range(num_blocks)])
-		
-	def forward(self, x, pe, is_pad):
-		"""
-		x: input tensor of shape (batch_size, text_len, input_dim)
-		pe: expected to be PositionEncoder(x), shape (text_len, input_dim)
-		is_pad: tensor of shape(batch_size, text_len). Hold value TRUE for pad tokens. 
-		output: tensor of the same shape (batch_size, text_len, input_dim)
-		"""
-		for encoder_block in self.encoder_blocks:
-			x = encoder_block(x, pe, is_pad)
-		return x
+        x_flat = x_emb.flatten(start_dim=0, end_dim = 1)
+        x_conv_out = self.convnet(x_flat.permute((0,2,1)))
+        return x_conv_out.view((-1,seq_len,self.word_embed_size))
+
+        return output
+
 
 class BiDAFAttention(nn.Module):
     """Bidirectional attention originally used by BiDAF.
-    This can be reused in our QANet model without any modification.
-    Here hidden_size means the same thing as input_dim in other modules in this file.
     Bidirectional attention computes attention in two directions:
     The context attends to the query and the query attends to the context.
     The output of this layer is the concatenation of [context, c2q_attention,
     context * c2q_attention, context * q2c_attention]. This concatenation allows
     the attention vector at each timestep, along with the embeddings from
     previous layers, to flow through the attention layer to the modeling layer.
-    The output has shape (batch_size, context_len, 4 * hidden_size).
+    The output has shape (batch_size, context_len, 8 * hidden_size).
     Args:
-        hidden_size (int): Size of hidden activations.        
+        hidden_size (int): Size of hidden activations.
+        drop_prob (float): Probability of zero-ing out activations.
     """
     def __init__(self, hidden_size):
         super(BiDAFAttention, self).__init__()
-        self.dropout = nn.Dropout(0.1)
-        self.c_weight = nn.Parameter(torch.empty(hidden_size, 1))
-        self.q_weight = nn.Parameter(torch.empty(hidden_size, 1))
-        self.cq_weight = nn.Parameter(torch.empty(1, 1, hidden_size))
-        for weight in (self.c_weight, self.q_weight, self.cq_weight):
-            nn.init.xavier_uniform_(weight)
+        self.c_weight = nn.Parameter(torch.zeros(hidden_size, 1))
+        self.q_weight = nn.Parameter(torch.zeros(hidden_size, 1))
+        self.cq_weight = nn.Parameter(torch.zeros(1, 1, hidden_size))
+        #for weight in (self.c_weight, self.q_weight, self.cq_weight):
+            #nn.init.xavier_uniform_(weight)
         self.bias = nn.Parameter(torch.zeros(1))
 
     def forward(self, c, q, c_mask, q_mask):
@@ -443,8 +508,6 @@ class BiDAFAttention(nn.Module):
             Equation 1 in https://arxiv.org/abs/1611.01603
         """
         c_len, q_len = c.size(1), q.size(1)
-        c = self.dropout(c)  # (bs, c_len, hid_size)
-        q = self.dropout(q)  # (bs, q_len, hid_size)
 
         # Shapes: (batch_size, c_len, q_len)
         s0 = torch.matmul(c, self.c_weight).expand([-1, -1, q_len])
@@ -454,38 +517,3 @@ class BiDAFAttention(nn.Module):
         s = s0 + s1 + s2 + self.bias
 
         return s
-        
-class QANetOutput(nn.Module):
-    """Output layer used by QANet for question answering.
-    Args:
-        hidden_size (int): Hidden size used in the model.
-    """
-    def __init__(self, hidden_size):
-        super(QANetOutput, self).__init__()
-        
-        self.proj01 = nn.Parameter(torch.empty(hidden_size, 1))
-        nn.init.xavier_uniform_(self.proj01)
-        self.proj11 = nn.Parameter(torch.empty(hidden_size, 1))
-        nn.init.xavier_uniform_(self.proj11)
-        self.proj02 = nn.Parameter(torch.empty(hidden_size, 1))
-        nn.init.xavier_uniform_(self.proj02)
-        self.proj22 = nn.Parameter(torch.empty(hidden_size, 1))
-        nn.init.xavier_uniform_(self.proj22)
-        
-        self.bias1 = nn.Parameter(torch.zeros(1))
-        self.bias2 = nn.Parameter(torch.zeros(1))
-    def forward(self, M0, M1, M2, is_pad):
-    	"""
-    	M0, M1, M2: tensors of shape (batch_size, text_len, hidden_size)
-    	is_pad: tensor of shape(batch_size, text_len). Hold value TRUE for pad tokens.
-    	
-    	This method applies linear projections separately instead of concatenating the input tensors to save a little memory.
-    	"""
-    	A1 = torch.matmul(M0, self.proj01) + torch.matmul(M1, self.proj11) + self.bias1 ## shape (batch_size, text_len, 1)
-    	A2 = torch.matmul(M0, self.proj02) + torch.matmul(M2, self.proj22) + self.bias2 ## shape (batch_size, text_len, 1)
-    	
-    	# Shapes: (batch_size, text_len)
-    	log_p1 = masked_softmax(A1.squeeze(dim=2), is_pad, log_softmax=True)
-    	log_p2 = masked_softmax(A2.squeeze(dim=2), is_pad, log_softmax=True)
-    	
-    	return log_p1, log_p2
