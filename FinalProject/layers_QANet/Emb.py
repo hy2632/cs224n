@@ -111,32 +111,46 @@ class HighwayEncoder(nn.Module):
         return x
 
 class CNN(nn.Module):
+    """ CNN, mapping x_reshaped to x_conv_out \n
+        Mostly from Assignment 5. Changed the shape of input to align with the project.
 
-    def __init__(self,embed_size,char_embed_size=50,ker=5,pad=1):
-        """
-        Constructor for the gate model
-        @param embed_size : int for the size of the word  embeded size
-        @param char_embded_size  : int for the size of the caracter  embeded size
-        @param ker : int kernel_size used in Convolutions
-        @param pad : int padding used in Convolutions
-        @param stri : int  number of stride.
-        """
-        super(CNN, self).__init__() 
+        @param filters (int): number of filters \n
+        @param kernel_size (int): default as k=5 \n
+        @param stride (int): default as stride=1 \n
+    """
 
-        ##################### Initialize layers #########################
-        self.conv_layer=nn.Conv1d(in_channels=char_embed_size, out_channels=embed_size, kernel_size=ker, padding=pad)
-        #nn.init.kaiming_normal_(self.conv_layer.weight, nonlinearity='relu')
-        self.maxpool=nn.AdaptiveMaxPool1d(1)
-        
-    def forward(self,xreshaped):
+    # Remember to delete the above 'pass' after your implementation
+    ### YOUR CODE HERE for part 1g
+    def __init__(
+        self,
+        f: int,
+        e_char: int = 50,
+        k: int = 5,
+        padding: int = 1,
+    ):
+
+        super(CNN, self).__init__()
+        self.f = f
+        self.conv1d = nn.Conv1d(
+            in_channels=e_char,
+            out_channels=f,
+            kernel_size=k,
+            padding=padding,
+            bias=True,
+        )
+
+    def forward(
+        self,
+        x_reshaped: torch.Tensor,
+    ) -> torch.Tensor:
+        """ Map from x_reshaped to x_conv_out\n
+            @param x_reshaped (Tensor): Tensor with shape of (batch_size, sentence_length, m_word, e_char) \n
+            @return x_conv_out (Tensor) : Tensor with shape of (batch_size, sentence_length, e_word=f) \n
         """
-        forward function for computing the output
-        @param xreshaped : torch tensor of size [BATCH_SIZE, EMBED_SIZE, max_word_lenght]. 
-        @return xconvout : torch tensor after convolution and maxpooling [BATCH_SIZE, EMBED_SIZE].
-        """
-        xconv=self.conv_layer(xreshaped)
-        xconvout=self.maxpool(F.relu(xconv)).squeeze()
-        return xconvout
+        (batch_size, sentence_length, m_word, e_char) = tuple(x_reshaped.size())
+        x_conv = self.conv1d(x_reshaped.contiguous().view(sentence_length*batch_size, e_char, m_word))
+        x_conv_out = torch.max(F.relu(x_conv), dim=2)[0].contiguous().view(batch_size, sentence_length, self.f)
+        return x_conv_out
 
 # Word_emb + Char_emb + Highway
 class Embedding(nn.Module):
@@ -151,7 +165,7 @@ class Embedding(nn.Module):
         self.char_emb = nn.Embedding(char_vocab_size, char_dim, padding_idx=0)
         nn.init.uniform_(self.char_emb.weight, -0.001, 0.001)
         # ===========================================
-        # self.convnet=CNN(word_dim,char_dim)
+        self.cnn=CNN(char_dim, char_dim, 5, 2)
         # ===========================================        
         self.hwy = HighwayEncoder(2, word_dim, char_dim)
         
@@ -162,10 +176,9 @@ class Embedding(nn.Module):
         e_char = self.char_emb(c_idxs)
         e_char = F.dropout(e_char, self.drop_prob_char, self.training)
 
-        e_char = torch.max(e_char, dim=2, keepdim=True)[0].squeeze(dim=2)
+        # e_char = torch.max(e_char, dim=2, keepdim=True)[0].squeeze(dim=2)
 
-        # e_char = e_char.flatten(start_dim=0, end_dim = 1)
-        # e_char = self.convnet(e_char.permute((0,2,1))).permute((0,2,1))
+        e_char = self.cnn(e_char)
 
         emb = torch.cat([F.dropout(e_word, self.drop_prob_word, self.training), e_char], dim=-1)
         emb = self.hwy(emb)

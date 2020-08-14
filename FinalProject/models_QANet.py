@@ -59,7 +59,7 @@ class QANet(nn.Module):
             num_blocks=num_mod_blocks)# 节省内存=============================
         # m0, m1, m2
         
-        self.out = Output(d_model=d_model, drop_prob=drop_prob)
+        self.out = Output(d_model=d_model)
 
     def forward(self, cw_idxs, cc_idxs, qw_idxs, qc_idxs):
         # cw_idxs: (batch_size, c_len)
