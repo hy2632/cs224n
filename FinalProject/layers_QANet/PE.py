@@ -1,9 +1,10 @@
 import math
+from util import get_available_devices
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class PositionalEncoding(nn.Module):
+class Positional_Encoding(nn.Module):
     """Implement the PE function.
     Reference:
         (http://nlp.seas.harvard.edu/2018/04/03/attention.html)
@@ -19,11 +20,13 @@ class PositionalEncoding(nn.Module):
 
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0) #(1, seq_len, d_model)
-        self.register_buffer('pe', pe)
+        self.pe = pe.unsqueeze(0) #(1, seq_len, d_model)
+        # self.register_buffer('pe', pe)
+        device, _ = get_available_devices()
+        self.pe = self.pe.to(device)
 
     def forward(self, x):
         # x: (batch_size, seq_len, d_model)
         # pe: (1, max_seq_len, d_model)
-        x = x + torch.autograd.Variable(self.pe[:, :x.size(1), :], requires_grad=False)
-        return x
+        return x + self.pe[:, :x.size(1), :]
+        

@@ -56,15 +56,13 @@ def main(args):
     char_vectors = util.torch_from_json(args.char_emb_file)
     char_vocab_size, _ = tuple(char_vectors.size())
 
-    model = QANet(
-        word_vectors,
-        char_vocab_size=char_vocab_size,
-        char_dim=200,
-        d_model=128,
-        drop_prob=0.,
-        num_mod_blocks=7,
-        maximum_context_length=400
-    )
+    model = QANet(word_vectors = word_vectors,
+                  char_vocab_size = char_vocab_size,
+                  char_dim = args.char_dim,
+                  d_model = args.d_model,
+                  drop_prob=args.drop_prob,
+                  num_mod_blocks=7,
+                  maximum_context_length=600)
     # ==============================================================================
 
     model = nn.DataParallel(model, args.gpu_ids)
@@ -87,7 +85,7 @@ def main(args):
     # Get optimizer and scheduler
     optimizer = optim.Adadelta(model.parameters(),
                                args.lr,
-                               eps = 1e-6,
+                               eps=1e-6,
                                weight_decay=args.l2_wd)
     scheduler = sched.LambdaLR(optimizer, lambda s: 1.)  # Constant LR
 
@@ -115,7 +113,7 @@ def main(args):
         log.info(f'Starting epoch {epoch}...')
         with torch.enable_grad(), \
                 tqdm(total=len(train_loader.dataset)) as progress_bar:
-            for cw_idxs, cc_idxs, qw_idxs, qc_idxs, y1, y2, ids in train_loader: # 08/09 可见作者已经贴心地预留了cc_idxs...
+            for cw_idxs, cc_idxs, qw_idxs, qc_idxs, y1, y2, ids in train_loader:  # 08/09 可见作者已经贴心地预留了cc_idxs...
                 # Setup for forward
                 cw_idxs = cw_idxs.to(device)
                 cc_idxs = cc_idxs.to(device)
@@ -127,7 +125,9 @@ def main(args):
                 # Forward
                 # 8/12 当seq_len > max_context_length = 400 时raise ValueError 并跳过
                 try:
-                    log_p1, log_p2 = model(cw_idxs, cc_idxs, qw_idxs, qc_idxs) # 08/09 增加cc_idxs 和 qc_idxs
+                    log_p1, log_p2 = model(
+                        cw_idxs, cc_idxs, qw_idxs,
+                        qc_idxs)  # 08/09 增加cc_idxs 和 qc_idxs
                 except ValueError:
                     continue
 
@@ -137,7 +137,8 @@ def main(args):
 
                 # Backward
                 loss.backward()
-                nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                nn.utils.clip_grad_norm_(model.parameters(),
+                                         args.max_grad_norm)
                 optimizer.step()
                 scheduler.step(step // batch_size)
                 ema(model, step // batch_size)
@@ -145,11 +146,9 @@ def main(args):
                 # Log info
                 step += batch_size
                 progress_bar.update(batch_size)
-                progress_bar.set_postfix(epoch=epoch,
-                                         NLL=loss_val)
+                progress_bar.set_postfix(epoch=epoch, NLL=loss_val)
                 tbx.add_scalar('train/NLL', loss_val, step)
-                tbx.add_scalar('train/LR',
-                               optimizer.param_groups[0]['lr'],
+                tbx.add_scalar('train/LR', optimizer.param_groups[0]['lr'],
                                step)
 
                 steps_till_eval -= batch_size
@@ -167,7 +166,8 @@ def main(args):
                     ema.resume(model)
 
                     # Log to console
-                    results_str = ', '.join(f'{k}: {v:05.2f}' for k, v in results.items())
+                    results_str = ', '.join(f'{k}: {v:05.2f}'
+                                            for k, v in results.items())
                     log.info(f'Dev {results_str}')
 
                     # Log to TensorBoard
@@ -203,10 +203,10 @@ def evaluate(model, data_loader, device, eval_file, max_len, use_squad_v2):
             # log_p1, log_p2 = model(cw_idxs, cc_idxs, qw_idxs, qc_idxs)
 
             try:
-                log_p1, log_p2 = model(cw_idxs, cc_idxs, qw_idxs, qc_idxs) # 08/09 增加cc_idxs 和 qc_idxs
+                log_p1, log_p2 = model(cw_idxs, cc_idxs, qw_idxs,
+                                       qc_idxs)  # 08/09 增加cc_idxs 和 qc_idxs
             except ValueError:
                 continue
-
 
             y1, y2 = y1.to(device), y2.to(device)
             loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)

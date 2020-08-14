@@ -28,8 +28,6 @@ class C2QAttention(nn.Module):
             nn.init.xavier_uniform_(weight)
         self.bias = nn.Parameter(torch.zeros(1), requires_grad=True)
 
-        self.fc = nn.Linear(4*dim, dim, True)
-
     def get_similarity_matrix(self, c, q, c_len, q_len):
         s0 = torch.matmul(c, self.c_weight).expand([-1, -1, q_len])
         # c:(bs, c_len, h); self.c_weight: (h, 1); mm: (bs, c_len, 1); after expand: (bs, c_len, q_len)
@@ -53,10 +51,7 @@ class C2QAttention(nn.Module):
         A = torch.bmm(S_, q) # (bs, c_len, q_len)*(bs, q_len, d_model) = (bs, c_len, d_model)
         B = torch.bmm(torch.bmm(S_, S__.permute(0,2,1)), c) # (bs, c_len, q_len)*(bs, q_len, c_len)*(bs, c_len, d_model) = (bs, c_len, d_model)
         x = torch.cat([c, A, c * A, c * B], dim=2)  # (bs, c_len, 4 * d_model)
-
-        # 加一个全连接层？
-        x = self.fc(x)
-        
+    
         return x
 
 
