@@ -110,6 +110,33 @@ class HighwayEncoder(nn.Module):
             x = g * t + (1 - g) * x
         return x
 
+class CNN(nn.Module):
+
+    def __init__(self,embed_size,char_embed_size=50,ker=5,pad=1):
+        """
+        Constructor for the gate model
+        @param embed_size : int for the size of the word  embeded size
+        @param char_embded_size  : int for the size of the caracter  embeded size
+        @param ker : int kernel_size used in Convolutions
+        @param pad : int padding used in Convolutions
+        @param stri : int  number of stride.
+        """
+        super(CNN, self).__init__() 
+
+        ##################### Initialize layers #########################
+        self.conv_layer=nn.Conv1d(in_channels=char_embed_size, out_channels=embed_size, kernel_size=ker, padding=pad)
+        #nn.init.kaiming_normal_(self.conv_layer.weight, nonlinearity='relu')
+        self.maxpool=nn.AdaptiveMaxPool1d(1)
+        
+    def forward(self,xreshaped):
+        """
+        forward function for computing the output
+        @param xreshaped : torch tensor of size [BATCH_SIZE, EMBED_SIZE, max_word_lenght]. 
+        @return xconvout : torch tensor after convolution and maxpooling [BATCH_SIZE, EMBED_SIZE].
+        """
+        xconv=self.conv_layer(xreshaped)
+        xconvout=self.maxpool(F.relu(xconv)).squeeze()
+        return xconvout
 
 # Word_emb + Char_emb + Highway
 class Embedding(nn.Module):
@@ -123,12 +150,23 @@ class Embedding(nn.Module):
         self.word_emb = nn.Embedding.from_pretrained(word_vectors)
         self.char_emb = nn.Embedding(char_vocab_size, char_dim, padding_idx=0)
         nn.init.uniform_(self.char_emb.weight, -0.001, 0.001)
+        # ===========================================
+        # self.convnet=CNN(word_dim,char_dim)
+        # ===========================================        
         self.hwy = HighwayEncoder(2, word_dim, char_dim)
+        
     
     def forward(self, w_idxs, c_idxs):
         
         e_word = self.word_emb(w_idxs)
         e_char = self.char_emb(c_idxs)
-        emb = torch.cat([F.dropout(e_word, self.drop_prob_word, self.training), e_char])
+        e_char = F.dropout(e_char, self.drop_prob_char, self.training)
+
+        e_char = torch.max(e_char, dim=2, keepdim=True)[0].squeeze(dim=2)
+
+        # e_char = e_char.flatten(start_dim=0, end_dim = 1)
+        # e_char = self.convnet(e_char.permute((0,2,1))).permute((0,2,1))
+
+        emb = torch.cat([F.dropout(e_word, self.drop_prob_word, self.training), e_char], dim=-1)
         emb = self.hwy(emb)
         return emb

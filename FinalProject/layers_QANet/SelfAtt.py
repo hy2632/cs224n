@@ -1,3 +1,4 @@
+from numpy.lib.shape_base import expand_dims
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -45,9 +46,15 @@ class Self_Attention(nn.Module):
 
             # A = softmax(Q*K.T/sqrt(d_k))*V
             tmp = torch.bmm(Q, K.permute(0,2,1)) / math.sqrt(self.d_k) # (batch_size, seq_len, seq_len)
-            mask_unsqueezed = torch.bmm(mask, mask.permute(0,2,1))
-            tmp = masked_softmax(tmp, mask_unsqueezed, dim=1)
-            tmp = masked_softmax(tmp, mask_unsqueezed, dim=2)
+            # mask = mask.type(torch.float)
+            # mask_unsqueezed = mask.unsqueeze(dim=-1)
+            # mask_unsqueezed = torch.bmm(mask_unsqueezed, mask_unsqueezed.permute(0,2,1))
+
+            # 构建一个二维mask
+            mask_unsqueezed = mask.unsqueeze(dim=-1)
+            mask_2d = mask_unsqueezed.expand((batch_size, seq_len, seq_len))
+            tmp = masked_softmax(tmp, mask_2d, dim=-2)
+            # tmp的第三维和V第二维抵消，所以softmax第三维
             heads[:,:,i,:] = torch.bmm(tmp,V) # (batch_size, seq_len, d_v)
         
         x_out = heads.view(batch_size, seq_len, -1).contiguous()

@@ -42,7 +42,7 @@ class QANet(nn.Module):
             maximum_context_length=maximum_context_length,
             num_conv=4,
             kernel_size=7,
-            num_heads=8)
+            num_heads=4) # 节省内存=============================
         # x_c_out & x_q_out
 
         self.c2q_att = C2QAttention(dim=d_model)
@@ -55,15 +55,15 @@ class QANet(nn.Module):
             maximum_context_length=maximum_context_length,
             num_conv=2,
             kernel_size=5,
-            num_heads=8,
-            num_blocks=num_mod_blocks)
+            num_heads=4,
+            num_blocks=num_mod_blocks)# 节省内存=============================
         # m0, m1, m2
         
         self.out = Output(d_model=d_model, drop_prob=drop_prob)
 
     def forward(self, cw_idxs, cc_idxs, qw_idxs, qc_idxs):
-        # cw_idxs: (batch_size, c_len, 1)
-        # cc_idxs: (batch_size, c_len, char_dim, 1)
+        # cw_idxs: (batch_size, c_len)
+        # cc_idxs: (batch_size, c_len, char_dim)
         c_mask = torch.zeros_like(cw_idxs) != cw_idxs
         q_mask = torch.zeros_like(qw_idxs) != qw_idxs
 
@@ -78,7 +78,7 @@ class QANet(nn.Module):
         c_emb = F.relu(self.emb_proj(c_emb))
         q_emb = F.relu(self.emb_proj(q_emb))
 
-        c_enc, q_enc = self.emb_enc(c_emb)
+        c_enc, q_enc = self.emb_enc(c_emb, q_emb, c_mask, q_mask)
         c2q_att = self.c2q_att(c_enc, q_enc, c_mask, q_mask)
 
         # Dropout

@@ -3,13 +3,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 from layers_QANet.PE import Positional_Encoding
 from layers_QANet.DSConv import Depth_Separable_Convolution
-from layers_QANet.SelfAtt import Self_Attention
+# from layers_QANet.SelfAtt import Self_Attention
 from layers_QANet.FFN import Feed_Forward
 
 
-def residual_block(x:torch.Tensor, layernorm:nn.Module, layer:nn.Module, mask=None):
-    if mask:
-        return x + layer(layernorm(x), mask)
+def residual_block(x:torch.Tensor, layernorm:nn.Module, layer:nn.Module, mask=(False, None)):
+    if mask[0]:
+            temp = layernorm(x)
+            temp = temp.permute(1, 0, 2)
+            temp, _ = layer(temp, temp, temp, key_padding_mask= (mask[1] == False))
+            temp = temp.permute(1, 0, 2)
+            return x + temp
     else:
         return x + layer(layernorm(x))
 
@@ -33,8 +37,14 @@ class Encoder_Block(nn.Module):
             [nn.LayerNorm(dim) for _ in range(num_conv)])
 
         # Self-Attention (Multi-head)
-        self.att = Self_Attention(num_heads, dim)
+        # self.att = Self_Attention(num_heads, dim) 
+
+        # ===========================================================
+        # 改用官方的layer
+        self.att = nn.MultiheadAttention(dim, num_heads)
         self.att_ln = nn.LayerNorm(dim)
+        # ===========================================================
+
 
         # Feed Forward layer
         self.ffn = Feed_Forward(dim, dim)
@@ -50,7 +60,7 @@ class Encoder_Block(nn.Module):
             x = residual_block(x, norm, conv)
         
         # Self Attention
-        x = residual_block(x, self.att_ln, self.att, mask)
+        x = residual_block(x, self.att_ln, self.att, (True, mask))
 
         # FFN
         x = residual_block(x, self.ffn_ln, self.ffn)

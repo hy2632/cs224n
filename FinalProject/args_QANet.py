@@ -144,6 +144,27 @@ def get_train_args():
                     type=int,
                     default=128,
                     help='Size of char vectors (char-level embeddings)')
+    
+    
+    parser.add_argument('--beta1',
+                        type=float,
+                        default=0.8,
+                        help='b1')
+
+    parser.add_argument('--beta2',
+                    type=float,
+                    default=0.999,
+                    help='b2')
+
+    parser.add_argument('--adam_eps',
+                type=float,
+                default=1e-7,
+                help='eps for adam')
+
+    parser.add_argument('--warm_up',
+            type=float,
+            default=1000.,
+            help='warmup')
     # ===================================================================================
 
     args = parser.parse_args()

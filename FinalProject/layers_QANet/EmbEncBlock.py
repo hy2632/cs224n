@@ -11,6 +11,7 @@ class Embedding_Encoder(nn.Module):
     def __init__(self, dim, maximum_context_length, num_conv, kernel_size,
                  num_heads):
         super().__init__()
+        self.maximum_context_length = maximum_context_length
         self.enc = Encoder_Block(dim, maximum_context_length, num_conv,
                                  kernel_size, num_heads)
 

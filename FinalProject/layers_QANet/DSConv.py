@@ -22,8 +22,8 @@ class Depth_Separable_Convolution(nn.Module):
             stride=1,
             padding=kernel_size // 2,
             groups=
-            output_dim,  # 按照官方文档，each input channel is convolved with its own set of filters
-            bias=True)
+            input_dim,  # 按照官方文档，each input channel is convolved with its own set of filters
+            bias=False)
         self.sep = nn.Conv1d(
             in_channels=input_dim,
             out_channels=output_dim,

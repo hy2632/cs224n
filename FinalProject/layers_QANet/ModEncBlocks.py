@@ -13,7 +13,8 @@ class Model_Encoder(nn.Module):
         super().__init__()
 
         self.num_blocks = num_blocks
-
+        self.maximum_context_length = maximum_context_length
+        
         self.enc = nn.ModuleList([
             Encoder_Block(dim, maximum_context_length, num_conv, kernel_size,
                           num_heads) for _ in range(num_blocks)

@@ -6,6 +6,7 @@ Author:
     *Hua Yao (hy2632@columbia.edu)
 """
 
+import math
 import numpy as np
 import random
 import torch
@@ -30,6 +31,10 @@ from util import collate_fn, SQuAD
 
 
 def main(args):
+    # ===========================================================
+    torch.cuda.empty_cache()
+    # ===========================================================
+
     # Set up logging and devices
     args.save_dir = util.get_save_dir(args.save_dir, args.name, training=True)
     log = util.get_logger(args.save_dir, args.name)
@@ -53,16 +58,17 @@ def main(args):
     log.info('Building model...')
 
     # ==============================================================================
-    char_vectors = util.torch_from_json(args.char_emb_file)
-    char_vocab_size, _ = tuple(char_vectors.size())
+    # char_vectors = util.torch_from_json(args.char_emb_file)
+    # char_vocab_size, _ = tuple(char_vectors.size())
+    char_vocab_size = 1376 # 节省内存
 
     model = QANet(word_vectors = word_vectors,
                   char_vocab_size = char_vocab_size,
                   char_dim = args.char_dim,
                   d_model = args.d_model,
                   drop_prob=args.drop_prob,
-                  num_mod_blocks=7,
-                  maximum_context_length=600)
+                  num_mod_blocks=3, # 节省内存=============================
+                  maximum_context_length=400)
     # ==============================================================================
 
     model = nn.DataParallel(model, args.gpu_ids)
@@ -83,11 +89,17 @@ def main(args):
                                  log=log)
 
     # Get optimizer and scheduler
-    optimizer = optim.Adadelta(model.parameters(),
-                               args.lr,
-                               eps=1e-6,
-                               weight_decay=args.l2_wd)
-    scheduler = sched.LambdaLR(optimizer, lambda s: 1.)  # Constant LR
+    # optimizer = optim.Adadelta(model.parameters(),
+    #                            args.lr,
+    #                            eps=1e-6,
+    #                            weight_decay=args.l2_wd)
+    # scheduler = sched.LambdaLR(optimizer, lambda s: 1.)  # Constant LR
+
+# ========================================================================================================================================
+    optimizer = optim.Adam(lr=1, betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.l2_wd, params=model.parameters())
+    cr = args.lr / math.log2(args.warm_up)
+    scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda ee: cr * math.log2(ee + 1) if ee < args.warm_up else args.lr)
+# ========================================================================================================================================
 
     # Get data loader
     log.info('Building dataset...')
