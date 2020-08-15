@@ -22,7 +22,7 @@ class QANet(nn.Module):
     def __init__(
             self,
             word_vectors,
-             char_vocab_size,
+            char_vocab_size,
             # char_vectors,
             char_dim,
             d_model,
@@ -51,7 +51,7 @@ class QANet(nn.Module):
             maximum_context_length=maximum_context_length,
             num_conv=4,
             kernel_size=7,
-            num_heads=4)  # 节省内存=============================
+            num_heads=8)  # 节省内存=============================
         # x_c_out & x_q_out
 
         self.c2q_att = C2QAttention(dim=d_model)
@@ -64,7 +64,7 @@ class QANet(nn.Module):
             maximum_context_length=maximum_context_length,
             num_conv=2,
             kernel_size=5,
-            num_heads=4,
+            num_heads=8,
             num_blocks=num_mod_blocks)  # 节省内存=============================
         # m0, m1, m2
 

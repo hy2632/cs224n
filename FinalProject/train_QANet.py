@@ -68,7 +68,7 @@ def main(args):
         char_dim=args.char_dim,
         d_model=args.d_model,
         drop_prob=args.drop_prob,
-        num_mod_blocks=5,  # 节省内存=============================
+        num_mod_blocks=4,  # 节省内存=============================
         maximum_context_length=400)
     # ==============================================================================
 
@@ -96,7 +96,20 @@ def main(args):
     #                            weight_decay=args.l2_wd)
     # scheduler = sched.LambdaLR(optimizer, lambda s: 1.)  # Constant LR
 
+    # QANet-03================================================================================================================================
+    # optimizer = optim.Adam(lr=1,
+    #                        betas=(args.beta1, args.beta2),
+    #                        eps=args.adam_eps,
+    #                        weight_decay=args.l2_wd,
+    #                        params=model.parameters())
+    # cr = args.lr / math.log2(args.warm_up)
+    # scheduler = optim.lr_scheduler.LambdaLR(
+    #     optimizer,
+    #     lr_lambda=lambda ee: cr * math.log2(ee + 1)
+    #     if ee < args.warm_up else args.lr)
     # ========================================================================================================================================
+
+    # QANet-04================================================================================================================================
     optimizer = optim.Adam(lr=1,
                            betas=(args.beta1, args.beta2),
                            eps=args.adam_eps,
@@ -108,6 +121,7 @@ def main(args):
         lr_lambda=lambda ee: cr * math.log2(ee + 1)
         if ee < args.warm_up else args.lr)
     # ========================================================================================================================================
+
 
     # Get data loader
     log.info('Building dataset...')

@@ -178,13 +178,15 @@ class Embedding(nn.Module):
 
         self.word_emb = nn.Embedding.from_pretrained(word_vectors)
         self.char_emb = nn.Embedding(char_vocab_size, char_dim, padding_idx=0)
+        
+        # QANet-03 增加: 我们希望char_emb初始都能大于0， 这样max(relu(), dim=2(seq_len wise))在初始能起到效果
+        nn.init.uniform_(self.char_emb.weight, 0, 1)
+
         # ===========================================
         # self.cnn=CNN(char_dim, char_dim, 5, 2)
         # ===========================================        
         self.hwy = HighwayEncoder(2, word_dim, char_dim)
 
-    
-        
     
     def forward(self, w_idxs, c_idxs):
         

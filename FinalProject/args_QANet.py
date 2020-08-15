@@ -97,7 +97,7 @@ def get_train_args():
                         help='Number of steps between successive evaluations.')
     parser.add_argument('--lr',
                         type=float,
-                        default=0.001, #改
+                        default=1e-5, # QANet-02: 1e-3
                         help='Learning rate.')
     parser.add_argument('--l2_wd',
                         type=float,
@@ -266,7 +266,7 @@ def add_train_test_args(parser):
                         help='Base directory for saving information.')
     parser.add_argument('--batch_size',
                         type=int,
-                        default=28, # 08/12 CUDA out of memory 问题
+                        default=32, # 08/12 CUDA out of memory 问题
                         help='Batch size per GPU. Scales automatically when \
                               multiple GPUs are available.')
     parser.add_argument('--use_squad_v2',
