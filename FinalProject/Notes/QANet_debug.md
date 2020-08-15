@@ -63,8 +63,9 @@ c_enc, q_enc = self.emb_enc(c_emb, q_emb, c_mask, q_mask)
 
 改动:
 
+    char_embedding 由于softmax(relu()),将权重初始化到0-1的uniform    
     学习率：1e-3 -> 1e-5
     num_mod_blocks: 4
     num_heads: 8
     args.batch_size: 28 -> 32
-    尝试 embedding 到 emb_enc 的 linear projection 改成 CNN
+    <!-- 尝试 embedding 到 emb_enc 的 linear projection 改成 CNN -->
