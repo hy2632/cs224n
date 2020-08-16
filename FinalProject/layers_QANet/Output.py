@@ -7,8 +7,8 @@ from util import masked_softmax
 class Output(nn.Module):
     def __init__(self, d_model):
         super().__init__()
-        self.w1 = nn.Linear(2 * d_model, 1)
-        self.w2 = nn.Linear(2 * d_model, 1)
+        self.w1 = nn.Linear(2 * d_model, 1, bias=False)
+        self.w2 = nn.Linear(2 * d_model, 1, bias=False)
 
     def forward(self, M0, M1, M2, mask):
         # 08/10: mod: (batch_size, seq_len, h)

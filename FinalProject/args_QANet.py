@@ -97,7 +97,7 @@ def get_train_args():
                         help='Number of steps between successive evaluations.')
     parser.add_argument('--lr',
                         type=float,
-                        default=1e-5, # QANet-02: 1e-3
+                        default=0.5, # QANet-02: 1e-3 03:1e-4 04:2e-4 06:0.5
                         help='Learning rate.')
     parser.add_argument('--l2_wd',
                         type=float,
@@ -145,6 +145,24 @@ def get_train_args():
                     default=128,
                     help='Size of char vectors (char-level embeddings)')
     
+    parser.add_argument('--num_heads',
+            type=int,
+            default=4,
+            help='number of heads in multihead attention')
+    
+    parser.add_argument('--num_mod_blocks',
+            type=int,
+            default=3,
+            help='number of modelencoder blocks for calculating m0, m1 and m2')
+    
+    parser.add_argument('--maximum_context_length',
+            type=int,
+            default=400,
+            help='maximum_context_length')
+
+
+
+
     
     parser.add_argument('--beta1',
                         type=float,
@@ -266,7 +284,7 @@ def add_train_test_args(parser):
                         help='Base directory for saving information.')
     parser.add_argument('--batch_size',
                         type=int,
-                        default=32, # 08/12 CUDA out of memory 问题
+                        default=28, # 08/12 CUDA out of memory 问题
                         help='Batch size per GPU. Scales automatically when \
                               multiple GPUs are available.')
     parser.add_argument('--use_squad_v2',

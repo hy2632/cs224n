@@ -110,49 +110,49 @@ class HighwayEncoder(nn.Module):
             x = g * t + (1 - g) * x
         return x
 
-# class CNN(nn.Module):
-#     """ CNN, mapping x_reshaped to x_conv_out \n
-#         Mostly from Assignment 5. Changed the shape of input to align with the project.
+class CNN(nn.Module):
+    """ CNN, mapping x_reshaped to x_conv_out \n
+        Mostly from Assignment 5. Changed the shape of input to align with the project.
 
-#         @param filters (int): number of filters \n
-#         @param kernel_size (int): default as k=5 \n
-#         @param stride (int): default as stride=1 \n
-#     """
+        @param filters (int): number of filters \n
+        @param kernel_size (int): default as k=5 \n
+        @param stride (int): default as stride=1 \n
+    """
 
-#     # Remember to delete the above 'pass' after your implementation
-#     ### YOUR CODE HERE for part 1g
-#     def __init__(
-#         self,
-#         f: int,
-#         e_char: int = 50,
-#         k: int = 5,
-#         padding: int = 1,
-#     ):
+    # Remember to delete the above 'pass' after your implementation
+    ### YOUR CODE HERE for part 1g
+    def __init__(
+        self,
+        f: int,
+        e_char: int = 50,
+        k: int = 5,
+        padding: int = 1,
+    ):
 
-#         super(CNN, self).__init__()
-#         self.f = f
-#         self.conv1d = nn.Conv1d(
-#             in_channels=e_char,
-#             out_channels=f,
-#             kernel_size=k,
-#             padding=padding,
-#             bias=True,
-#         )
+        super(CNN, self).__init__()
+        self.f = f
+        self.conv1d = nn.Conv1d(
+            in_channels=e_char,
+            out_channels=f,
+            kernel_size=k,
+            padding=padding,
+            bias=True,
+        )
 
-#     def forward(
-#         self,
-#         x_reshaped: torch.Tensor,
-#     ) -> torch.Tensor:
-#         """ Map from x_reshaped to x_conv_out\n
-#             @param x_reshaped (Tensor): Tensor with shape of (batch_size, sentence_length, m_word, e_char) \n
-#             @return x_conv_out (Tensor) : Tensor with shape of (batch_size, sentence_length, e_word=f) \n
-#         """
-#         (batch_size, sentence_length, m_word, e_char) = tuple(x_reshaped.size())
-#         x_conv = self.conv1d(x_reshaped.contiguous().view(sentence_length*batch_size, e_char, m_word))
-#         x_conv_out = torch.max(F.relu(x_conv), dim=2)[0].contiguous().view(batch_size, sentence_length, self.f)
-#         return x_conv_out
+    def forward(
+        self,
+        x_reshaped: torch.Tensor,
+    ) -> torch.Tensor:
+        """ Map from x_reshaped to x_conv_out\n
+            @param x_reshaped (Tensor): Tensor with shape of (batch_size, sentence_length, m_word, e_char) \n
+            @return x_conv_out (Tensor) : Tensor with shape of (batch_size, sentence_length, e_word=f) \n
+        """
+        (batch_size, sentence_length, m_word, e_char) = tuple(x_reshaped.size())
+        x_conv = self.conv1d(x_reshaped.contiguous().view(sentence_length*batch_size, e_char, m_word))
+        x_conv_out = torch.max(F.relu(x_conv), dim=2)[0].contiguous().view(batch_size, sentence_length, self.f)
+        return x_conv_out
 
-# Word_emb + Char_emb + Highway
+# Word_emb + Char_emb + Highway + CNN
 class Embedding(nn.Module):
     # def __init__(self, word_vectors, char_vocab_size, word_dim, char_dim,
     #              drop_prob_word, drop_prob_char):
@@ -169,23 +169,29 @@ class Embedding(nn.Module):
     #     # ===========================================        
     #     self.hwy = HighwayEncoder(2, word_dim, char_dim)
 
-    def __init__(self, word_vectors, char_vocab_size, word_dim, char_dim,
-                 drop_prob_word, drop_prob_char):
+    def __init__(self, word_vectors, char_vocab_size, word_dim, char_dim, d_model,
+                 drop_prob_word, drop_prob_char, drop_prob_general):
         super().__init__()
 
         self.drop_prob_char = drop_prob_char
         self.drop_prob_word = drop_prob_word
 
+        self.drop_prob_general = drop_prob_general
+
         self.word_emb = nn.Embedding.from_pretrained(word_vectors)
         self.char_emb = nn.Embedding(char_vocab_size, char_dim, padding_idx=0)
         
-        # QANet-03 增加: 我们希望char_emb初始都能大于0， 这样max(relu(), dim=2(seq_len wise))在初始能起到效果
-        nn.init.uniform_(self.char_emb.weight, 0, 1)
+        # QANet-03 增加: 我们希望char_emb初始都能大于0， 这样max(relu(), dim=2(seq_len wise))在初始能起到效果： 失败
+        # nn.init.uniform_(self.char_emb.weight, 0, 1)
+        # nn.init.xavier_uniform_(self.char_emb.weight)
 
         # ===========================================
-        # self.cnn=CNN(char_dim, char_dim, 5, 2)
+        self.cnn=CNN(char_dim, char_dim, 5, 2)
         # ===========================================        
         self.hwy = HighwayEncoder(2, word_dim, char_dim)
+
+        # QANet-04 08/15==========================================
+        self.cnn_proj = nn.Conv1d(char_dim+word_dim, d_model, 1, 1, 0)
 
     
     def forward(self, w_idxs, c_idxs):
@@ -194,10 +200,22 @@ class Embedding(nn.Module):
         e_char = self.char_emb(c_idxs)
         e_char = F.dropout(e_char, self.drop_prob_char, self.training)
 
-        (batch_size, seq_len, m_word, char_dim) = tuple(e_char.size())
-        e_char = e_char.contiguous().view(seq_len*batch_size, char_dim, m_word)
-        e_char = torch.max(F.relu(e_char), dim=2)[0].contiguous().view(batch_size, seq_len, char_dim)
-        # e_char = self.cnn(e_char)
+        # (batch_size, seq_len, m_word, char_dim) = tuple(e_char.size())
+        # e_char = e_char.contiguous().view(seq_len*batch_size, char_dim, m_word)
+        # e_char = torch.max(F.relu(e_char), dim=2)[0].contiguous().view(batch_size, seq_len, char_dim)
+
+        # QANet-03 去除F.relu 
+        # e_char = torch.max(e_char, dim=2)[0].contiguous().view(batch_size, seq_len, char_dim)
+
+        # QANet-04/05/06 08/15==========================================
+        e_char = self.cnn(e_char)
+
+        
         emb = torch.cat([F.dropout(e_word, self.drop_prob_word, self.training), e_char], dim=-1)
         emb = self.hwy(emb)
+
+        # QANet-04 08/15==========================================
+        emb = self.cnn_proj(emb.permute(0,2,1)).permute(0,2,1)
+        emb = F.dropout(emb, self.drop_prob_general, self.training)
+
         return emb

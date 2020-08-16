@@ -56,7 +56,7 @@ class QANet(nn.Module):
                                     drop_prob_char= self.dropout_char,
                                     drop_prob_word= self.dropout_word )
 
-        self.embedding_projection = nn.Linear(self.embd_size, self.hidden_size)
+        # self.embedding_projection = nn.Linear(self.embd_size, self.hidden_size)
         #nn.init.kaiming_normal_(self.embedding_projection.weight, nonlinearity = 'relu')
 
         self.emb_enc = QANet_layers_temp.Embedding_Encoder( self.num_blocks_embd,
