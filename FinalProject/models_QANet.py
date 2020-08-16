@@ -26,9 +26,10 @@ class QANet(nn.Module):
             # char_vectors,
             char_dim,
             d_model,
-            drop_prob=0.,
-            num_mod_blocks=7,
-            maximum_context_length=600):
+            drop_prob,
+            num_heads,
+            num_mod_blocks,
+            maximum_context_length):
         super().__init__()
 
         word_dim = word_vectors.size(1)
@@ -40,18 +41,20 @@ class QANet(nn.Module):
             # char_vectors,
             word_dim,
             char_dim,
+            d_model, # QANet-04 # 300+200 -> 128
             0.1,
-            0.05)
+            0.05,
+            self.drop_prob)
 
         # 300+200 -> 128
-        self.emb_proj = nn.Linear(word_dim + char_dim, d_model)
+        # self.emb_proj = nn.Linear(word_dim + char_dim, d_model)
 
         self.emb_enc = Embedding_Encoder(
             dim=d_model,
             maximum_context_length=maximum_context_length,
             num_conv=4,
             kernel_size=7,
-            num_heads=8)  # 节省内存=============================
+            num_heads=num_heads)  # 节省内存=============================
         # x_c_out & x_q_out
 
         self.c2q_att = C2QAttention(dim=d_model)
@@ -64,7 +67,7 @@ class QANet(nn.Module):
             maximum_context_length=maximum_context_length,
             num_conv=2,
             kernel_size=5,
-            num_heads=8,
+            num_heads=num_heads,
             num_blocks=num_mod_blocks)  # 节省内存=============================
         # m0, m1, m2
 
@@ -84,9 +87,9 @@ class QANet(nn.Module):
         c_emb = F.dropout(c_emb, self.drop_prob, self.training)
         q_emb = F.dropout(q_emb, self.drop_prob, self.training)
 
-        # Linear Projection
-        c_emb = F.relu(self.emb_proj(c_emb))
-        q_emb = F.relu(self.emb_proj(q_emb))
+        # # Linear Projection (canceled in QANet-04)
+        # c_emb = F.relu(self.emb_proj(c_emb))
+        # q_emb = F.relu(self.emb_proj(q_emb))
 
         c_enc, q_enc = self.emb_enc(c_emb, q_emb, c_mask, q_mask)
         c2q_att = self.c2q_att(c_enc, q_enc, c_mask, q_mask)

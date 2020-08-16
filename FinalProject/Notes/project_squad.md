@@ -1,5 +1,8 @@
 SQuAD leaderboard: <https://rajpurkar.github.io/SQuAD-explorer/>
 
+学生report: <https://web.stanford.edu/class/cs224n/reports/default/>
+
+
 1. Tensorboard
    在 Azure 上训练并在本地显示：
    1. 在 VM 终端运行`tensorboard --logdir save --port 5678`

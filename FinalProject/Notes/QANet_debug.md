@@ -27,7 +27,7 @@ c_enc, q_enc = self.emb_enc(c_emb, q_emb, c_mask, q_mask)
 
 改动：
 
-    char_emb 使用 CNN
+**char_emb 使用 CNN**
     multihead attention 使用 nn 自带的函数
     Output layer 简化，去掉一次 softmax 和 relu
     使用 Adam 训练
@@ -63,9 +63,53 @@ c_enc, q_enc = self.emb_enc(c_emb, q_emb, c_mask, q_mask)
 
 改动:
 
-    char_embedding 由于softmax(relu()),将权重初始化到0-1的uniform    
-    学习率：1e-3 -> 1e-5
-    num_mod_blocks: 4
-    num_heads: 8
-    args.batch_size: 28 -> 32
-    <!-- 尝试 embedding 到 emb_enc 的 linear projection 改成 CNN -->
+**char_embedding 由于softmax(relu()),将权重初始化到0-1的uniform** : 失败，结果不再变化。
+学习率：1e-3 -> 1e-4
+num_mod_blocks: 4
+num_heads: 8
+args.batch_size: 28 -> 32
+
+
+结果:
+
+    train_loss不断下降，val_loss却在epoch10后上升
+
+原因：(https://www.zhihu.com/question/396221084/answer/1236081752)
+
+    数据有坏点
+    起始学习率
+    模型逻辑可能不对
+    全连接更易过拟合
+
+结论：
+    overfitting
+    可以选用较短的epoch和较小的batch_size 28
+    模型的最高值仍然低于baseline
+
+
+
+## 08/15 QANet-04
+    <!-- 加dropout -->
+    batch_size 28
+    Char_emb 采用 CNN，同时mclen从400改到500
+    embedding 到 emb_enc 的 linear projection 改成 CNN 并直接加到Emb最后
+
+    效果差于QANet - 03
+
+## 8/15 QANet-05
+    3个mod_enc_block, 4个multihead, lr=5e-4
+    效果和04、02类似
+
+    只在Embedding最后加CNN没有做dropout
+
+    解决方案：去除一些bias，进一步简化，提前终止。
+
+## 8/15 QANet-06
+maximum_context_length:400
+去除bias: Output
+**cnn_proj 改成 kernel_size=1**
+改用adadelta, lr=0.5
+
+<https://web.stanford.edu/class/cs224n/reports/default/>
+看了一些论文，QANet可能确实还比不上BiDAF_Char，Non contextual embedding model的天花板就这样了，所以还是得加contextual embeddings。下一步做Bert。
+
